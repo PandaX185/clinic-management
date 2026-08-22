@@ -64,11 +64,15 @@ func (f *fakeTokenStore) SaveRefresh(_ context.Context, jti, userID string, _ ti
 	f.tokens[jti] = userID
 	return nil
 }
-func (f *fakeTokenStore) RefreshExists(_ context.Context, jti string) (bool, error) {
+func (f *fakeTokenStore) ConsumeRefresh(_ context.Context, jti string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	_, ok := f.tokens[jti]
-	return ok, nil
+	userID, ok := f.tokens[jti]
+	if !ok {
+		return "", ErrRefreshNotFound
+	}
+	delete(f.tokens, jti)
+	return userID, nil
 }
 func (f *fakeTokenStore) DeleteRefresh(_ context.Context, jti string) error {
 	f.mu.Lock()
@@ -218,7 +222,7 @@ func TestRefreshRotationAndRevocation(t *testing.T) {
 	}
 	// Both consumed refresh tokens (login's and the first rotation) must be
 	// gone; only the register-issued session and the latest rotation remain.
-	if revoked, _ := tokens.RefreshExists(context.Background(), jtiOf(t, oldRefresh)); revoked {
+	if _, ok := tokens.tokens[jtiOf(t, oldRefresh)]; ok {
 		t.Fatal("old refresh jti should have been deleted from the store")
 	}
 }
@@ -279,5 +283,60 @@ func TestRefreshInvalidInputs(t *testing.T) {
 				t.Fatalf("want %d got %d: %s", tc.want, rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+func TestRefreshConcurrentSingleWinner(t *testing.T) {
+	h, _, _ := newTestHandler()
+	body := login(t, h)
+	refresh := body["refresh_token"].(string)
+
+	const n = 8 // more contenders than 2 to stress the race
+	var wg sync.WaitGroup
+	codes := make([]int, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/auth/refresh",
+				strings.NewReader(`{"refresh_token":"`+refresh+`"}`))
+			req.Header.Set("Content-Type", "application/json")
+			h.Refresh(rec, req)
+			codes[i] = rec.Code
+		}(i)
+	}
+	wg.Wait()
+
+	okCount, unauthCount := 0, 0
+	for _, c := range codes {
+		switch c {
+		case http.StatusOK:
+			okCount++
+		case http.StatusUnauthorized:
+			unauthCount++
+		default:
+			t.Fatalf("unexpected status %d", c)
+		}
+	}
+	if okCount != 1 || unauthCount != n-1 {
+		t.Fatalf("expected exactly 1 x 200 and %d x 401, got ok=%d unauth=%d (codes=%v)", n-1, okCount, unauthCount, codes)
+	}
+}
+
+func TestRequestBodyTooLarge(t *testing.T) {
+	h, _, _ := newTestHandler()
+
+	handler := LimitBody(maxBodyBytes)(http.HandlerFunc(h.Login))
+
+	big := strings.Repeat("a", int(maxBodyBytes)+1024)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/auth/login",
+		strings.NewReader(`{"email":"`+big+`@example.com","password":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized body must be 413, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

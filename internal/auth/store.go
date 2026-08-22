@@ -32,13 +32,20 @@ type UserStore interface {
 type TokenStore interface {
 	// SaveRefresh stores jti -> userID with the given TTL.
 	SaveRefresh(ctx context.Context, jti, userID string, ttl time.Duration) error
-	// RefreshExists reports whether the refresh token jti is still valid.
-	RefreshExists(ctx context.Context, jti string) (bool, error)
-	// DeleteRefresh revokes the refresh token jti.
+	// ConsumeRefresh atomically checks-and-deletes the refresh token jti,
+	// returning the stored userID. Returns ErrRefreshNotFound if the token
+	// was already consumed/revoked. This prevents the TOCTOU race where two
+	// concurrent requests both observe the token before either deletes it.
+	ConsumeRefresh(ctx context.Context, jti string) (userID string, err error)
+	// DeleteRefresh revokes the refresh token jti without consuming it
+	// (used by logout).
 	DeleteRefresh(ctx context.Context, jti string) error
 }
 
-var ErrDuplicateEmail = errors.New("auth: email already registered")
+var (
+	ErrDuplicateEmail  = errors.New("auth: email already registered")
+	ErrRefreshNotFound = errors.New("auth: refresh token not found")
+)
 
 const refreshKeyPrefix = "refresh:"
 
@@ -57,12 +64,17 @@ func (s *RedisTokenStore) SaveRefresh(ctx context.Context, jti, userID string, t
 	return s.rdb.Set(ctx, refreshKey(jti), userID, ttl).Err()
 }
 
-func (s *RedisTokenStore) RefreshExists(ctx context.Context, jti string) (bool, error) {
-	n, err := s.rdb.Exists(ctx, refreshKey(jti)).Result()
-	if err != nil {
-		return false, err
+// ConsumeRefresh atomically consumes (GETDEL) the refresh token jti and
+// returns the stored userID. Requires Redis >= 6.2.
+func (s *RedisTokenStore) ConsumeRefresh(ctx context.Context, jti string) (string, error) {
+	userID, err := s.rdb.GetDel(ctx, refreshKey(jti)).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", ErrRefreshNotFound
 	}
-	return n > 0, nil
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
 }
 
 func (s *RedisTokenStore) DeleteRefresh(ctx context.Context, jti string) error {

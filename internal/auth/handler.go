@@ -65,11 +65,41 @@ type logoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// logoutRequest struct stays above; body-limit helpers below.
+
+// maxBodyBytes caps JSON request bodies at 1MB.
+const maxBodyBytes int64 = 1 << 20
+
+// LimitBody is middleware that wraps r.Body in http.MaxBytesReader so
+// oversized requests are rejected with 413 instead of being read fully.
+func LimitBody(n int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, n)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// decodeJSON decodes the request body into dst. Oversized bodies (from
+// MaxBytesReader) get a clean 413; malformed JSON gets a clean 400.
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return false
+		}
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return false
+	}
+	return true
+}
+
 // Register handles POST /api/v1/auth/register.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
@@ -108,8 +138,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 // Login handles POST /api/v1/auth/login.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	user, err := h.users.GetUserByEmail(r.Context(), strings.ToLower(strings.TrimSpace(req.Email)))
@@ -132,7 +161,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // and issues a fresh pair.
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+	if !decodeJSON(w, r, &req) || req.RefreshToken == "" {
 		writeError(w, http.StatusBadRequest, "refresh_token is required")
 		return
 	}
@@ -141,17 +170,19 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid or expired refresh token")
 		return
 	}
-	exists, err := h.tokens.RefreshExists(r.Context(), claims.ID)
+	// Atomically check-and-consume the refresh token so that two concurrent
+	// requests with the same token cannot both rotate (GETDEL semantics).
+	storedUserID, err := h.tokens.ConsumeRefresh(r.Context(), claims.ID)
 	if err != nil {
+		if errors.Is(err, ErrRefreshNotFound) {
+			writeError(w, http.StatusUnauthorized, "refresh token revoked")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "token store unavailable")
 		return
 	}
-	if !exists {
+	if storedUserID != claims.Subject {
 		writeError(w, http.StatusUnauthorized, "refresh token revoked")
-		return
-	}
-	if err := h.tokens.DeleteRefresh(r.Context(), claims.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to revoke old refresh token")
 		return
 	}
 	if err := h.issueAndSave(w, r, claims.Subject, claims.Email); err != nil {
@@ -163,7 +194,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 // Revokes the supplied refresh token.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req logoutRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+	if !decodeJSON(w, r, &req) || req.RefreshToken == "" {
 		writeError(w, http.StatusBadRequest, "refresh_token is required")
 		return
 	}

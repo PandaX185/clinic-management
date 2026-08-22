@@ -1,0 +1,27 @@
+# Build artifacts
+/bin/
+*.exe
+*.test
+*.out
+
+# Sprint board notes
+/board/
+
+# Scratch SQL experiments
+/uuidv7_*.sql
+
+# Environment & secrets
+.env
+.env.*
+config.local.yaml
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

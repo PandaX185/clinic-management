@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: clinic-postgres
+    environment:
+      POSTGRES_DB: clinic
+      POSTGRES_USER: clinic
+      POSTGRES_PASSWORD: clinic
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinic -d clinic"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clinic-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: clinic-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - clinic-network
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: clinic-nats
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "nats", "server", "check", "jetstream"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clinic-network
+
+  # Optional: API service for docker-compose up (commented out for local dev)
+  # api:
+  #   build: .
+  #   container_name: clinic-api
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     DATABASE_URL: postgres://clinic:clinic@postgres:5432/clinic?sslmode=disable
+  #     REDIS_URL: redis://redis:6379
+  #     NATS_URL: nats://nats:4222
+  #     JWT_SECRET: your-secret-key-change-in-production
+  #     JWT_REFRESH_SECRET: your-refresh-secret-change-in-production
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     nats:
+  #       condition: service_healthy
+  #   networks:
+  #     - clinic-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
+
+networks:
+  clinic-network:
+    driver: bridge

@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.22'
+  DATABASE_URL: postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable
+  REDIS_URL: redis://localhost:6379
+  NATS_URL: nats://localhost:4222
+  JWT_SECRET: test-secret-key
+  JWT_REFRESH_SECRET: test-refresh-secret
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  test:
+    name: Test (with race detector)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: clinic
+          POSTGRES_USER: clinic
+          POSTGRES_PASSWORD: clinic
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U clinic -d clinic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+      nats:
+        image: nats:2.10-alpine
+        command: ["-js", "-m", "8222"]
+        ports: ["4222:4222", "8222:8222"]
+        options: >-
+          --health-cmd "nats server check jetstream"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install migrate
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/
+      - name: Install sqlc
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - name: Run migrations
+        run: |
+          migrate -path migrations -database "$DATABASE_URL" up
+      - name: Generate sqlc
+        run: sqlc generate
+      - name: Run tests with race detector
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Build
+        run: go build -o bin/api ./cmd/api
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: clinic-api
+          path: bin/api
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t clinic-management:latest .
+      # Optional: Push to registry
+      # - name: Push to registry
+      #   run: docker push your-registry/clinic-management:latest

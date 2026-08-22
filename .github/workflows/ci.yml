@@ -56,15 +56,6 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
-      nats:
-        image: nats:2.10-alpine
-        command: ["-js", "-m", "8222"]
-        ports: ["4222:4222", "8222:8222"]
-        options: >-
-          --health-cmd "curl -f http://localhost:8222/healthz"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 30
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go

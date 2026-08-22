@@ -7,6 +7,12 @@
 # Sprint board notes
 /board/
 
+# Implementation plans (local workflow artifacts)
+/plan/
+
+# Meeting notes / non-technical docs
+/docs/
+
 # Scratch SQL experiments
 /uuidv7_*.sql
 

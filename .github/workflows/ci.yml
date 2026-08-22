@@ -28,7 +28,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.61.0
           args: --timeout=5m
 
   test:
@@ -60,7 +60,7 @@ jobs:
         command: ["-js", "-m", "8222"]
         ports: ["4222:4222", "8222:8222"]
         options: >-
-          --health-cmd "nats server check jetstream"
+          --health-cmd "curl -f http://localhost:8222/healthz"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -89,6 +89,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.out
+          fail_ci_if_error: false
 
   build:
     name: Build

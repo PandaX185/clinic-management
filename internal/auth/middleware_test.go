@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func signAccess(t *testing.T, c Claims) string {
@@ -27,29 +29,31 @@ func accessClaims(id string, roles []string) Claims {
 
 func doAuth(t *testing.T, header string) *httptest.ResponseRecorder {
 	t.Helper()
-	handler := RequireAuth(testSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := ClaimsFromContext(r.Context())
-		if c == nil {
-			w.WriteHeader(http.StatusInternalServerError)
+	r := gin.New()
+	r.GET("/protected", RequireAuth(testSecret), func(c *gin.Context) {
+		cl := ClaimsFromCtx(c)
+		if cl == nil {
+			c.Status(http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("X-User", c.Subject)
-		if _, ok := UserIDFromContext(r.Context()); !ok {
-			w.WriteHeader(http.StatusInternalServerError)
+		c.Header("X-User", cl.Subject)
+		if _, ok := UserIDFromCtx(c); !ok {
+			c.Status(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-	}))
+		c.Status(http.StatusOK)
+	})
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	if header != "" {
 		req.Header.Set("Authorization", header)
 	}
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 	return rec
 }
 
 func TestRequireAuthTableDriven(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 	valid := signAccess(t, accessClaims("user-1", []string{"patient"}))
 	expiredTok, _ := SignToken(testSecret, Claims{
 		Subject: "u", ID: "j", Type: TokenTypeAccess,
@@ -90,13 +94,7 @@ func TestRequireAuthTableDriven(t *testing.T) {
 }
 
 func TestRequireRoleTableDriven(t *testing.T) {
-	makeReq := func(roles []string) *http.Request {
-		tok := signAccess(t, accessClaims("u", roles))
-		claims := accessClaims("u", roles)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("Authorization", "Bearer "+tok)
-		return req.WithContext(contextWithClaims(req.Context(), &claims))
-	}
+	gin.SetMode(gin.TestMode)
 
 	cases := []struct {
 		name    string
@@ -112,12 +110,20 @@ func TestRequireRoleTableDriven(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var called bool
-			h := RequireRole(tc.allowed...)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r := gin.New()
+			r.GET("/", func(c *gin.Context) {
+				claims := accessClaims("u", tc.roles)
+				c.Set(claimsKey, &claims)
+				c.Next()
+			}, RequireRole(tc.allowed...), func(c *gin.Context) {
 				called = true
-				w.WriteHeader(http.StatusOK)
-			}))
+				c.Status(http.StatusOK)
+			})
+			tok := signAccess(t, accessClaims("u", tc.roles))
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Authorization", "Bearer "+tok)
 			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, makeReq(tc.roles))
+			r.ServeHTTP(rec, req)
 			if rec.Code != tc.want {
 				t.Fatalf("want %d, got %d", tc.want, rec.Code)
 			}
@@ -129,12 +135,14 @@ func TestRequireRoleTableDriven(t *testing.T) {
 }
 
 func TestRequireRoleWithoutAuthMiddleware(t *testing.T) {
-	h := RequireRole("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/", RequireRole("admin"), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401 without claims in context, got %d", rec.Code)
 	}

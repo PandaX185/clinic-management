@@ -13,8 +13,7 @@ import (
 	"github.com/axiom/clinic-appointment/internal/platform/logger"
 	"github.com/axiom/clinic-appointment/internal/platform/metrics"
 	"github.com/axiom/clinic-appointment/internal/platform/redis"
-	"github.com/go-chi/chi/v5"
-	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -26,47 +25,60 @@ type Pinger interface {
 }
 
 func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client, _ jetstream.JetStream, cfg *config.Config) http.Handler {
-	r := chi.NewRouter()
-
-	// Middleware
-	r.Use(chiMiddleware.RequestID)
-	r.Use(chiMiddleware.Recoverer)
-	r.Use(logr.HTTPLogger)
-	r.Use(metrics.HTTPMetrics)
-
-	// Health checks + metrics
-	r.Handle("/metrics", promhttp.Handler())
-	r.Get("/health", healthHandler)
-	r.Get("/ready", readyHandler(dbpool, redisClient))
-
-	// API routes
 	queries := sqlc.New(dbpool)
-	authHandler := auth.NewHandler(
+	return newRouter(logr,
 		auth.NewSQLUserStore(queries),
 		auth.NewRedisTokenStore(redisClient.Client),
-		auth.Config{
-			AccessSecret:  []byte(cfg.JWTSecret),
-			RefreshSecret: []byte(cfg.JWTRefreshSecret),
-			AccessTTL:     mustDuration(cfg.JWTAccessTTL, 15*time.Minute),
-			RefreshTTL:    mustDuration(cfg.JWTRefreshTTL, 168*time.Hour),
-		},
+		cfg,
+		dbpool, redisClient,
 	)
+}
 
-	// NOTE (PLATFORM-001 phase 2): the nine inline 501 placeholder routes
-	// were deleted. Unregistered paths now return chi's 404; the OpenAPI
-	// spec is the contract of record for not-yet-implemented domains.
-	r.Route("/api/v1", func(r chi.Router) {
-		// Auth routes (public)
-		r.Post("/auth/register", authHandler.Register)
-		r.Post("/auth/login", authHandler.Login)
-		r.Post("/auth/refresh", authHandler.Refresh)
+// newRouter builds the gin engine. Kept separate from setupRouter so tests
+// can wire it with fake stores and stub pingers.
+func newRouter(
+	logr *logger.Logger,
+	users auth.UserStore,
+	tokens auth.TokenStore,
+	cfg *config.Config,
+	dbp Pinger,
+	redisP Pinger,
+) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
 
-		// Protected routes
-		r.Group(func(r chi.Router) {
-			r.Use(auth.RequireAuth([]byte(cfg.JWTSecret)))
-			r.Post("/auth/logout", authHandler.Logout)
-		})
+	r.Use(gin.Recovery())
+	r.Use(logr.HTTPLogger())
+	r.Use(metrics.HTTPMetrics())
+	r.Use(auth.MaxBody(auth.MaxBodyBytes))
+
+	// Health checks + metrics
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	r.GET("/health", healthHandler)
+	r.GET("/ready", readyHandler(dbp, redisP))
+
+	authHandler := auth.NewHandler(users, tokens, auth.Config{
+		AccessSecret:  []byte(cfg.JWTSecret),
+		RefreshSecret: []byte(cfg.JWTRefreshSecret),
+		AccessTTL:     mustDuration(cfg.JWTAccessTTL, 15*time.Minute),
+		RefreshTTL:    mustDuration(cfg.JWTRefreshTTL, 168*time.Hour),
 	})
+
+	api := r.Group("/api/v1")
+
+	// Auth routes (public)
+	authPub := api.Group("/auth")
+	{
+		authPub.POST("/register", authHandler.Register)
+		authPub.POST("/login", authHandler.Login)
+		authPub.POST("/refresh", authHandler.Refresh)
+	}
+
+	// Protected routes
+	protected := api.Group("", auth.RequireAuth([]byte(cfg.JWTSecret)))
+	{
+		protected.POST("/auth/logout", authHandler.Logout)
+	}
 
 	return r
 }
@@ -84,28 +96,24 @@ func mustDuration(s string, fallback time.Duration) time.Duration {
 	return d
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+func healthHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func readyHandler(dbpool Pinger, redisClient Pinger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+func readyHandler(dbpool Pinger, redisP Pinger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
 
 		if err := dbpool.Ping(ctx); err != nil {
-			http.Error(w, "database not ready", http.StatusServiceUnavailable)
+			c.String(http.StatusServiceUnavailable, "database not ready")
 			return
 		}
-		if err := redisClient.Ping(ctx); err != nil {
-			http.Error(w, "redis not ready", http.StatusServiceUnavailable)
+		if err := redisP.Ping(ctx); err != nil {
+			c.String(http.StatusServiceUnavailable, "redis not ready")
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ready"}`))
+		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	}
 }

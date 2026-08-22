@@ -1,12 +1,12 @@
 package metrics
 
 import (
-	"fmt"
-	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"strconv"
 )
 
 var (
@@ -144,30 +144,18 @@ var (
 	)
 )
 
-func Init() {
-	// Metrics are auto-registered via promauto
-}
-
-func HTTPMetrics(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func HTTPMetrics() gin.HandlerFunc {
+	return func(c *gin.Context) {
 		start := time.Now()
 
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-		next.ServeHTTP(wrapped, r)
+		c.Next()
 
 		duration := time.Since(start).Seconds()
-		HTTPRequestsTotal.WithLabelValues(r.Method, r.URL.Path, fmt.Sprintf("%d", wrapped.statusCode)).Inc()
-		HTTPRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
-	})
-}
-
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
+		HTTPRequestsTotal.WithLabelValues(c.Request.Method, path, strconv.Itoa(c.Writer.Status())).Inc()
+		HTTPRequestDuration.WithLabelValues(c.Request.Method, path).Observe(duration)
+	}
 }

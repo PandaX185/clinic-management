@@ -1,10 +1,11 @@
 package logger
 
 import (
+	"time"
+
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"net/http"
-	"time"
 )
 
 type Logger struct {
@@ -59,32 +60,19 @@ func (l *Logger) With(fields ...zap.Field) *Logger {
 	return &Logger{l.Logger.With(fields...)}
 }
 
-// HTTPLogger returns a middleware that logs HTTP requests
-func (l *Logger) HTTPLogger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// HTTPLogger returns a gin middleware that logs HTTP requests
+func (l *Logger) HTTPLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
 		start := time.Now()
-		
-		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		
-		next.ServeHTTP(wrapped, r)
-		
-		duration := time.Since(start)
+
+		c.Next()
+
 		l.Info("HTTP request",
-			zap.String("method", r.Method),
-			zap.String("path", r.URL.Path),
-			zap.Int("status", wrapped.statusCode),
-			zap.Duration("duration", duration),
-			zap.String("remote_addr", r.RemoteAddr),
+			zap.String("method", c.Request.Method),
+			zap.String("path", c.Request.URL.Path),
+			zap.Int("status", c.Writer.Status()),
+			zap.Duration("duration", time.Since(start)),
+			zap.String("remote_addr", c.Request.RemoteAddr),
 		)
-	})
-}
-
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+	}
 }

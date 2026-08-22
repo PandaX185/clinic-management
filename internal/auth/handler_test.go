@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 // ---- in-memory fakes ----
 
 type fakeUserStore struct {
-	mu     sync.Mutex
-	users  map[string]*User // by email
-	roles  map[string][]string
-	nextID int
+	mu    sync.Mutex
+	users map[string]*User // by email
+	roles map[string][]string
 }
 
 func newFakeUsers() *fakeUserStore {
@@ -95,12 +95,35 @@ func newTestHandler() (*Handler, *fakeUserStore, *fakeTokenStore) {
 	return NewHandler(users, tokens, testCfg), users, tokens
 }
 
-func postJSON(t *testing.T, h http.HandlerFunc, path, body string) *httptest.ResponseRecorder {
+func init() {
+	gin.SetMode(gin.TestMode)
+}
+
+// newTestRouter builds a gin engine wired exactly like cmd/api/router.go,
+// with logout behind a stub auth middleware that injects fixed claims.
+func newTestRouter(h *Handler) *gin.Engine {
+	r := gin.New()
+	authPub := r.Group("/auth")
+	{
+		authPub.POST("/register", h.Register)
+		authPub.POST("/login", h.Login)
+		authPub.POST("/refresh", h.Refresh)
+	}
+	protected := r.Group("/auth", func(c *gin.Context) {
+		claims := accessClaims("someone", []string{"patient"})
+		c.Set(claimsKey, &claims)
+		c.Next()
+	})
+	protected.POST("/logout", h.Logout)
+	return r
+}
+
+func postJSON(t *testing.T, r *gin.Engine, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	h(rec, req)
+	r.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -113,15 +136,15 @@ func decodeBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 	return m
 }
 
-const validRegister = `{"email":"alice@example.com","password":"supersecret1","full_name":"Alice Doe","phone":"+15550001111"}`
+const validRegister = `{"email":"alice@example.com","password":"supersecret1","full_name":"Alice Doe","phone":"+155****1111"}`
 
 // login performs register+login and returns the token response body.
-func login(t *testing.T, h *Handler) map[string]any {
+func login(t *testing.T, r *gin.Engine) map[string]any {
 	t.Helper()
-	if rec := postJSON(t, h.Register, "/auth/register", validRegister); rec.Code != http.StatusOK {
+	if rec := postJSON(t, r, "/auth/register", validRegister); rec.Code != http.StatusOK {
 		t.Fatalf("register failed: %d %s", rec.Code, rec.Body.String())
 	}
-	rec := postJSON(t, h.Login, "/auth/login", `{"email":"alice@example.com","password":"supersecret1"}`)
+	rec := postJSON(t, r, "/auth/login", `{"email":"alice@example.com","password":"supersecret1"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login failed: %d %s", rec.Code, rec.Body.String())
 	}
@@ -132,6 +155,7 @@ func login(t *testing.T, h *Handler) map[string]any {
 
 func TestRegister(t *testing.T) {
 	h, users, _ := newTestHandler()
+	r := newTestRouter(h)
 
 	cases := []struct {
 		name string
@@ -147,7 +171,7 @@ func TestRegister(t *testing.T) {
 	}
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := postJSON(t, h.Register, "/auth/register", tc.body)
+			rec := postJSON(t, r, "/auth/register", tc.body)
 			if rec.Code != tc.want {
 				t.Fatalf("want %d got %d: %s", tc.want, rec.Code, rec.Body.String())
 			}
@@ -166,7 +190,8 @@ func TestRegister(t *testing.T) {
 
 func TestLoginTableDriven(t *testing.T) {
 	h, _, _ := newTestHandler()
-	if rec := postJSON(t, h.Register, "/auth/register", validRegister); rec.Code != http.StatusOK {
+	r := newTestRouter(h)
+	if rec := postJSON(t, r, "/auth/register", validRegister); rec.Code != http.StatusOK {
 		t.Fatalf("setup register failed: %s", rec.Body.String())
 	}
 
@@ -182,7 +207,7 @@ func TestLoginTableDriven(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := postJSON(t, h.Login, "/auth/login", tc.body)
+			rec := postJSON(t, r, "/auth/login", tc.body)
 			if rec.Code != tc.want {
 				t.Fatalf("want %d got %d: %s", tc.want, rec.Code, rec.Body.String())
 			}
@@ -192,12 +217,13 @@ func TestLoginTableDriven(t *testing.T) {
 
 func TestRefreshRotationAndRevocation(t *testing.T) {
 	h, _, tokens := newTestHandler()
-	first := login(t, h)
+	r := newTestRouter(h)
+	first := login(t, r)
 
 	oldRefresh := first["refresh_token"].(string)
 
 	// Rotate.
-	rec := postJSON(t, h.Refresh, "/auth/refresh", `{"refresh_token":"`+oldRefresh+`"}`)
+	rec := postJSON(t, r, "/auth/refresh", `{"refresh_token":"`+oldRefresh+`"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("refresh failed: %d %s", rec.Code, rec.Body.String())
 	}
@@ -210,13 +236,13 @@ func TestRefreshRotationAndRevocation(t *testing.T) {
 	}
 
 	// Old refresh token must now be revoked.
-	rec = postJSON(t, h.Refresh, "/auth/refresh", `{"refresh_token":"`+oldRefresh+`"}`)
+	rec = postJSON(t, r, "/auth/refresh", `{"refresh_token":"`+oldRefresh+`"}`)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("reused refresh token must be revoked, got %d", rec.Code)
 	}
 
 	// New refresh token still works once more (then gets rotated again).
-	rec = postJSON(t, h.Refresh, "/auth/refresh", `{"refresh_token":"`+second["refresh_token"].(string)+`"}`)
+	rec = postJSON(t, r, "/auth/refresh", `{"refresh_token":"`+second["refresh_token"].(string)+`"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("fresh refresh token should work: %d %s", rec.Code, rec.Body.String())
 	}
@@ -239,22 +265,19 @@ func jtiOf(t *testing.T, tok string) string {
 
 func TestLogoutRevokesRefresh(t *testing.T) {
 	h, _, _ := newTestHandler()
-	body := login(t, h)
+	r := newTestRouter(h)
+	body := login(t, r)
 	refresh := body["refresh_token"].(string)
 
-	// Logout requires auth middleware upstream; simulate by wrapping like main.go does.
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		claims := accessClaims("someone", []string{"patient"})
-		r = r.WithContext(contextWithClaims(r.Context(), &claims))
-		h.Logout(w, r)
-	}
-	rec := postJSON(t, handler, "/auth/logout", `{"refresh_token":"`+refresh+`"}`)
+	// Logout route sits behind the stub claims-injecting middleware in
+	// newTestRouter, mirroring RequireAuth in production.
+	rec := postJSON(t, r, "/auth/logout", `{"refresh_token":"`+refresh+`"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("logout failed: %d %s", rec.Code, rec.Body.String())
 	}
 
 	// Refresh after logout must be rejected.
-	rec = postJSON(t, h.Refresh, "/auth/refresh", `{"refresh_token":"`+refresh+`"}`)
+	rec = postJSON(t, r, "/auth/refresh", `{"refresh_token":"`+refresh+`"}`)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("refresh after logout must be 401, got %d", rec.Code)
 	}
@@ -262,7 +285,8 @@ func TestLogoutRevokesRefresh(t *testing.T) {
 
 func TestRefreshInvalidInputs(t *testing.T) {
 	h, _, _ := newTestHandler()
-	login(t, h)
+	r := newTestRouter(h)
+	login(t, r)
 
 	cases := []struct {
 		name string
@@ -278,7 +302,7 @@ func TestRefreshInvalidInputs(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := postJSON(t, h.Refresh, "/auth/refresh", tc.body)
+			rec := postJSON(t, r, "/auth/refresh", tc.body)
 			if rec.Code != tc.want {
 				t.Fatalf("want %d got %d: %s", tc.want, rec.Code, rec.Body.String())
 			}
@@ -288,7 +312,8 @@ func TestRefreshInvalidInputs(t *testing.T) {
 
 func TestRefreshConcurrentSingleWinner(t *testing.T) {
 	h, _, _ := newTestHandler()
-	body := login(t, h)
+	r := newTestRouter(h)
+	body := login(t, r)
 	refresh := body["refresh_token"].(string)
 
 	const n = 8 // more contenders than 2 to stress the race
@@ -302,7 +327,7 @@ func TestRefreshConcurrentSingleWinner(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/auth/refresh",
 				strings.NewReader(`{"refresh_token":"`+refresh+`"}`))
 			req.Header.Set("Content-Type", "application/json")
-			h.Refresh(rec, req)
+			r.ServeHTTP(rec, req)
 			codes[i] = rec.Code
 		}(i)
 	}
@@ -326,15 +351,16 @@ func TestRefreshConcurrentSingleWinner(t *testing.T) {
 
 func TestRequestBodyTooLarge(t *testing.T) {
 	h, _, _ := newTestHandler()
+	r := gin.New()
+	r.Use(MaxBody(MaxBodyBytes))
+	r.POST("/auth/login", h.Login)
 
-	handler := LimitBody(maxBodyBytes)(http.HandlerFunc(h.Login))
-
-	big := strings.Repeat("a", int(maxBodyBytes)+1024)
+	big := strings.Repeat("a", int(MaxBodyBytes)+1024)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/auth/login",
 		strings.NewReader(`{"email":"`+big+`@example.com","password":"x"}`))
 	req.Header.Set("Content-Type", "application/json")
-	handler.ServeHTTP(rec, req)
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized body must be 413, got %d: %s", rec.Code, rec.Body.String())

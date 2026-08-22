@@ -42,8 +42,8 @@ var testConfig = &config.Config{
 	Port:             "0",
 	JWTSecret:        "test-access-secret",
 	JWTRefreshSecret: "test-refresh-secret",
-	JWTAccessTTL:     "15m",
-	JWTRefreshTTL:    "168h",
+	JWTAccessTTL:     15 * time.Minute,
+	JWTRefreshTTL:    168 * time.Hour,
 }
 
 // healthyPinger is a Pinger stub that always succeeds.

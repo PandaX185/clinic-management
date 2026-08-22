@@ -34,17 +34,19 @@ func main() {
 
 	// Initialize logger
 	logr := logger.New(cfg.LogLevel)
-	logr.Info("Starting Axiom Clinic Appointment System", zap.String("version", "dev"))
+	logr.Info("Starting Clinic Appointment System", zap.String("version", "dev"))
 
 	// Initialize OpenTelemetry
 	shutdownOTEL, err := tracing.Init(&tracing.Config{
-		ServiceName:    "axiom-clinic-appointment",
+		ServiceName:    "clinic-appointment",
 		ServiceVersion: "dev",
 	})
 	if err != nil {
 		logr.Error("Failed to initialize tracing", zap.Error(err))
 	}
-	defer shutdownOTEL(context.Background())
+	defer func() {
+		_ = shutdownOTEL(context.Background())
+	}()
 
 	// Initialize metrics
 	metrics.Init()
@@ -63,7 +65,9 @@ func main() {
 		logr.Error("Failed to connect to Redis", zap.Error(err))
 		os.Exit(1)
 	}
-	defer redisClient.Close()
+	defer func() {
+		_ = redisClient.Close()
+	}()
 
 	// NATS JetStream connection
 	nc, js, err := nats.Connect(cfg.NATSURL)
@@ -120,7 +124,6 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 
 	// Middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(logr.HTTPLogger)
 	r.Use(metrics.HTTPMetrics)
@@ -134,11 +137,11 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 		// Auth routes (public) - TODO: implement authHandler
 		r.Post("/auth/login", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotImplemented)
-			w.Write([]byte(`{"error":"not implemented"}`))
+			_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 		})
 		r.Post("/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotImplemented)
-			w.Write([]byte(`{"error":"not implemented"}`))
+			_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 		})
 
 		// Protected routes - TODO: implement authMiddleware
@@ -148,51 +151,51 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 			// Patients - TODO: implement patientHandler
 			r.Post("/patients", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Get("/patients/{id}", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Patch("/patients/{id}", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 
 			// Doctors - TODO: implement doctorHandler
 			r.Post("/doctors", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Get("/doctors", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Get("/doctors/{id}/availability", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 
 			// Appointments - TODO: implement appointmentHandler
 			r.Post("/appointments", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Get("/appointments/{id}", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Get("/appointments", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Post("/appointments/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 			r.Post("/appointments/{id}/reschedule", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotImplemented)
-				w.Write([]byte(`{"error":"not implemented"}`))
+				_, _ = w.Write([]byte(`{"error":"not implemented"}`))
 			})
 		})
 	})
@@ -203,7 +206,7 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
 func readyHandler(dbpool *db.Pool, redisClient *redis.Client) http.HandlerFunc {
@@ -222,6 +225,6 @@ func readyHandler(dbpool *db.Pool, redisClient *redis.Client) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ready"}`))
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	}
 }

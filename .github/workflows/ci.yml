@@ -58,7 +58,6 @@ jobs:
           --health-retries 5
       nats:
         image: nats:2.10-alpine
-        command: ["-js", "-m", "8222"]
         ports: ["4222:4222", "8222:8222"]
         options: >-
           --health-cmd "curl -f http://localhost:8222/healthz"

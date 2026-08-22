@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/axiom/clinic-appointment/internal/auth"
 	"github.com/axiom/clinic-appointment/internal/platform/config"
 	"github.com/axiom/clinic-appointment/internal/platform/db"
+	sqlc "github.com/axiom/clinic-appointment/internal/platform/db/sqlc"
 	"github.com/axiom/clinic-appointment/internal/platform/logger"
 	"github.com/axiom/clinic-appointment/internal/platform/metrics"
 	"github.com/axiom/clinic-appointment/internal/platform/nats"
@@ -132,21 +134,29 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 	r.Get("/health", healthHandler)
 	r.Get("/ready", readyHandler(dbpool, redisClient))
 
-	// API routes - placeholder for now (handlers to be implemented)
-	r.Route("/api/v1", func(r chi.Router) {
-		// Auth routes (public) - TODO: implement authHandler
-		r.Post("/auth/login", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotImplemented)
-			_, _ = w.Write([]byte(`{"error":"not implemented"}`))
-		})
-		r.Post("/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotImplemented)
-			_, _ = w.Write([]byte(`{"error":"not implemented"}`))
-		})
+	// API routes
+	queries := sqlc.New(dbpool)
+	authHandler := auth.NewHandler(
+		auth.NewSQLUserStore(queries),
+		auth.NewRedisTokenStore(redisClient.Client),
+		auth.Config{
+			AccessSecret:  []byte(cfg.JWTSecret),
+			RefreshSecret: []byte(cfg.JWTRefreshSecret),
+			AccessTTL:     mustDuration(cfg.JWTAccessTTL, 15*time.Minute),
+			RefreshTTL:    mustDuration(cfg.JWTRefreshTTL, 168*time.Hour),
+		},
+	)
 
-		// Protected routes - TODO: implement authMiddleware
+	r.Route("/api/v1", func(r chi.Router) {
+		// Auth routes (public)
+		r.Post("/auth/register", authHandler.Register)
+		r.Post("/auth/login", authHandler.Login)
+		r.Post("/auth/refresh", authHandler.Refresh)
+
+		// Protected routes
 		r.Group(func(r chi.Router) {
-			// r.Use(authMiddleware.RequireAuth)
+			r.Use(auth.RequireAuth([]byte(cfg.JWTSecret)))
+			r.Post("/auth/logout", authHandler.Logout)
 
 			// Patients - TODO: implement patientHandler
 			r.Post("/patients", func(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +211,18 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 	})
 
 	return r
+}
+
+func mustDuration(s string, fallback time.Duration) time.Duration {
+	if s == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		log.Printf("invalid duration %q, using fallback %v", s, fallback)
+		return fallback
+	}
+	return d
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

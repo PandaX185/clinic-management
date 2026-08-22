@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
@@ -60,8 +59,8 @@ func newRouter(
 	authHandler := auth.NewHandler(users, tokens, auth.Config{
 		AccessSecret:  []byte(cfg.JWTSecret),
 		RefreshSecret: []byte(cfg.JWTRefreshSecret),
-		AccessTTL:     mustDuration(cfg.JWTAccessTTL, 15*time.Minute),
-		RefreshTTL:    mustDuration(cfg.JWTRefreshTTL, 168*time.Hour),
+		AccessTTL:     cfg.JWTAccessTTL,
+		RefreshTTL:    cfg.JWTRefreshTTL,
 	})
 
 	api := r.Group("/api/v1")
@@ -81,19 +80,6 @@ func newRouter(
 	}
 
 	return r
-}
-
-// mustDuration parses a duration config value, falling back only when the
-// value is empty. A malformed value is fatal — we refuse to guess.
-func mustDuration(s string, fallback time.Duration) time.Duration {
-	if s == "" {
-		return fallback
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		log.Fatalf("invalid duration %q: %v", s, err)
-	}
-	return d
 }
 
 func healthHandler(c *gin.Context) {

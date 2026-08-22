@@ -17,10 +17,10 @@ import (
 	"github.com/axiom/clinic-appointment/internal/platform/metrics"
 	"github.com/axiom/clinic-appointment/internal/platform/nats"
 	"github.com/axiom/clinic-appointment/internal/platform/redis"
-	"github.com/axiom/clinic-appointment/internal/platform/tracing"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -31,27 +31,9 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// DEBUG: Print loaded config
-	log.Printf("DEBUG: Loaded config - Port: %s, DB: %s, Redis: %s, NATS: %s", cfg.Port, cfg.DatabaseURL, cfg.RedisURL, cfg.NATSURL)
-
 	// Initialize logger
 	logr := logger.New(cfg.LogLevel)
 	logr.Info("Starting Clinic Appointment System", zap.String("version", "dev"))
-
-	// Initialize OpenTelemetry
-	shutdownOTEL, err := tracing.Init(&tracing.Config{
-		ServiceName:    "clinic-appointment",
-		ServiceVersion: "dev",
-	})
-	if err != nil {
-		logr.Error("Failed to initialize tracing", zap.Error(err))
-	}
-	defer func() {
-		_ = shutdownOTEL(context.Background())
-	}()
-
-	// Initialize metrics
-	metrics.Init()
 
 	// Database connection
 	dbpool, err := db.NewPool(cfg.DatabaseURL)
@@ -68,7 +50,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() {
-		_ = redisClient.Close()
+		if err := redisClient.Close(); err != nil {
+			logr.Error("Redis close error", zap.Error(err))
+		}
 	}()
 
 	// NATS JetStream connection
@@ -130,7 +114,7 @@ func setupRouter(logr *logger.Logger, dbpool *db.Pool, redisClient *redis.Client
 	r.Use(logr.HTTPLogger)
 	r.Use(metrics.HTTPMetrics)
 
-	// Health checks
+	r.Handle("/metrics", promhttp.Handler())
 	r.Get("/health", healthHandler)
 	r.Get("/ready", readyHandler(dbpool, redisClient))
 

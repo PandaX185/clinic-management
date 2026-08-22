@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -12,10 +13,10 @@ import (
 // so individual tests only override what they care about.
 func requiredVars() map[string]string {
 	return map[string]string{
-		"DATABASE_URL":      "postgres://clinic:pw@localhost:5432/clinic?sslmode=disable",
-		"REDIS_URL":         "redis://localhost:6379",
-		"NATS_URL":          "nats://localhost:4222",
-		"JWT_SECRET":        "test-access-secret",
+		"DATABASE_URL":       "postgres://clinic:pw@localhost:5432/clinic?sslmode=disable",
+		"REDIS_URL":          "redis://localhost:6379",
+		"NATS_URL":           "nats://localhost:4222",
+		"JWT_SECRET":         "test-access-secret",
 		"JWT_REFRESH_SECRET": "test-refresh-secret",
 	}
 }
@@ -27,6 +28,24 @@ func setEnv(t *testing.T, vars map[string]string) {
 	}
 }
 
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	orig, wasSet := os.LookupEnv(key)
+	require.NoError(t, os.Unsetenv(key))
+	t.Cleanup(func() {
+		if wasSet {
+			os.Setenv(key, orig)
+		} else {
+			os.Unsetenv(key)
+		}
+	})
+}
+
+// TestConfig_Load_MissingRequired unsets each required var entirely.
+// It uses os.Unsetenv (not t.Setenv(k, "")) because an empty string still
+// counts as "present" — and must fail for a different reason (see
+// TestConfig_Load_EmptyRequired). Restoring via t.Cleanup keeps this
+// independent of whether vars are exported in the surrounding environment.
 func TestConfig_Load_MissingRequired(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -43,10 +62,39 @@ func TestConfig_Load_MissingRequired(t *testing.T) {
 			vars := requiredVars()
 			delete(vars, tt.dropKey)
 			setEnv(t, vars)
+			unsetEnv(t, tt.dropKey)
 
 			cfg, err := Load()
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.dropKey)
+			assert.Nil(t, cfg)
+		})
+	}
+}
+
+// TestConfig_Load_EmptyRequired sets each required var to the empty string.
+// notEmpty tags must reject this just like a missing var, regardless of
+// whether the vars are exported in the surrounding environment (e.g. CI).
+func TestConfig_Load_EmptyRequired(t *testing.T) {
+	tests := []struct {
+		name     string
+		emptyKey string
+	}{
+		{"empty DATABASE_URL", "DATABASE_URL"},
+		{"empty REDIS_URL", "REDIS_URL"},
+		{"empty NATS_URL", "NATS_URL"},
+		{"empty JWT_SECRET", "JWT_SECRET"},
+		{"empty JWT_REFRESH_SECRET", "JWT_REFRESH_SECRET"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vars := requiredVars()
+			vars[tt.emptyKey] = ""
+			setEnv(t, vars)
+
+			cfg, err := Load()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.emptyKey)
 			assert.Nil(t, cfg)
 		})
 	}

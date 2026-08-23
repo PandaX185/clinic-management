@@ -2,9 +2,10 @@
 // versions:
 //   sqlc v1.31.1
 
-package db
+package sqlc
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,86 +13,123 @@ import (
 )
 
 type Appointment struct {
-	ID                 uuid.UUID   `json:"id"`
-	PatientID          uuid.UUID   `json:"patient_id"`
-	DoctorID           uuid.UUID   `json:"doctor_id"`
-	ScheduleID         pgtype.UUID `json:"schedule_id"`
-	StartTime          time.Time   `json:"start_time"`
-	EndTime            time.Time   `json:"end_time"`
-	Status             string      `json:"status"`
-	Notes              pgtype.Text `json:"notes"`
-	CancellationReason pgtype.Text `json:"cancellation_reason"`
-	CreatedBy          pgtype.UUID `json:"created_by"`
-	CreatedAt          time.Time   `json:"created_at"`
-	UpdatedAt          time.Time   `json:"updated_at"`
+	ID                 uuid.UUID
+	PatientID          uuid.UUID
+	DoctorID           uuid.UUID
+	StartTime          time.Time
+	EndTime            time.Time
+	Status             string
+	Notes              *string
+	CancellationReason *string
+	Version            int32
+	CreatedBy          *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type AuditLog struct {
+	ID          uuid.UUID
+	ActorUserID *uuid.UUID
+	Action      string
+	EntityType  string
+	EntityID    *uuid.UUID
+	Details     json.RawMessage
+	CreatedAt   time.Time
 }
 
 type Doctor struct {
-	ID             uuid.UUID   `json:"id"`
-	UserID         uuid.UUID   `json:"user_id"`
-	Specialization pgtype.Text `json:"specialization"`
-	LicenseNumber  pgtype.Text `json:"license_number"`
-	Bio            pgtype.Text `json:"bio"`
-	IsActive       bool        `json:"is_active"`
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Specialization string
+	LicenseNumber  string
+	Bio            *string
+	IsActive       bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type DoctorSchedule struct {
-	ID        uuid.UUID   `json:"id"`
-	DoctorID  uuid.UUID   `json:"doctor_id"`
-	DayOfWeek int16       `json:"day_of_week"`
-	StartTime pgtype.Time `json:"start_time"`
-	EndTime   pgtype.Time `json:"end_time"`
-	IsActive  bool        `json:"is_active"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
+	ID          uuid.UUID
+	DoctorID    uuid.UUID
+	DayOfWeek   int16
+	StartTime   pgtype.Time
+	EndTime     pgtype.Time
+	SlotMinutes int32
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type DoctorScheduleException struct {
-	ID            uuid.UUID   `json:"id"`
-	DoctorID      uuid.UUID   `json:"doctor_id"`
-	ExceptionDate pgtype.Date `json:"exception_date"`
-	StartTime     pgtype.Time `json:"start_time"`
-	EndTime       pgtype.Time `json:"end_time"`
-	IsUnavailable bool        `json:"is_unavailable"`
-	Reason        pgtype.Text `json:"reason"`
-	CreatedAt     time.Time   `json:"created_at"`
+	ID            uuid.UUID
+	DoctorID      uuid.UUID
+	ExceptionDate time.Time
+	IsUnavailable bool
+	StartTime     pgtype.Time
+	EndTime       pgtype.Time
+	Reason        *string
+	CreatedAt     time.Time
+}
+
+type IdempotencyKey struct {
+	Key            string
+	Endpoint       string
+	UserID         *uuid.UUID
+	RequestHash    string
+	ResponseStatus int32
+	ResponseBody   *json.RawMessage
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+}
+
+type Notification struct {
+	ID            uuid.UUID
+	AppointmentID *uuid.UUID
+	Channel       string
+	Recipient     string
+	Subject       *string
+	Body          string
+	Status        string
+	Attempts      int32
+	LastError     *string
+	NatsMsgID     *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Patient struct {
-	ID                    uuid.UUID   `json:"id"`
-	UserID                uuid.UUID   `json:"user_id"`
-	DateOfBirth           pgtype.Date `json:"date_of_birth"`
-	Gender                pgtype.Text `json:"gender"`
-	Address               pgtype.Text `json:"address"`
-	EmergencyContactName  pgtype.Text `json:"emergency_contact_name"`
-	EmergencyContactPhone pgtype.Text `json:"emergency_contact_phone"`
-	MedicalNotes          pgtype.Text `json:"medical_notes"`
-	CreatedAt             time.Time   `json:"created_at"`
-	UpdatedAt             time.Time   `json:"updated_at"`
+	ID                    uuid.UUID
+	UserID                *uuid.UUID
+	FullName              string
+	DateOfBirth           *time.Time
+	Gender                *string
+	Phone                 *string
+	Address               *string
+	EmergencyContactName  *string
+	EmergencyContactPhone *string
+	MedicalNotes          *string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type Role struct {
-	ID          uuid.UUID   `json:"id"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
 }
 
 type User struct {
-	ID            uuid.UUID   `json:"id"`
-	Email         string      `json:"email"`
-	PasswordHash  string      `json:"password_hash"`
-	FullName      string      `json:"full_name"`
-	Phone         pgtype.Text `json:"phone"`
-	IsActive      bool        `json:"is_active"`
-	EmailVerified bool        `json:"email_verified"`
-	CreatedAt     time.Time   `json:"created_at"`
-	UpdatedAt     time.Time   `json:"updated_at"`
+	ID           uuid.UUID
+	Email        string
+	PasswordHash string
+	FullName     string
+	Phone        *string
+	IsActive     bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type UserRole struct {
-	UserID uuid.UUID `json:"user_id"`
-	RoleID uuid.UUID `json:"role_id"`
+	UserID uuid.UUID
+	RoleID uuid.UUID
 }

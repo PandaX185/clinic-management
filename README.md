@@ -1,36 +1,46 @@
 # Clinic Appointment System
 
-> Production-grade backend for managing patients, doctors, schedules, and appointments with strong concurrency guarantees, async notifications, and full observability.
+> Production-grade backend for managing patients, doctors, schedules, and appointments — strong concurrency guarantees enforced in PostgreSQL, async notifications over NATS JetStream, full observability.
+
+Implements the **Clinic Appointment & Management Backend SRS v1.0**.
 
 ---
 
 ## Architecture
 
+Layered clean architecture: HTTP → service (domain rules) → repository (PostgreSQL). Cross-cutting infrastructure lives in `internal/platform`; each domain module owns its models, business logic, transport, and persistence behind narrow interfaces.
+
 ```
-+-----------------------------------------------------------------+
-|                        Clinic Appointment API                   |
-+-----------------------------------------------------------------+
-|  REST API (Chi)  |  JWT Auth  |  OpenAPI 3.1  |  Observability  |
-+-----------------------------------------------------------------+
-|  Domain Layer:  Patients | Doctors | Appointments | Schedules    |
-+-----------------------------------------------------------------+
-|  Data Layer:    PostgreSQL (uuidv7, exclusion constraints)      |
-|  Cache:         Redis (sessions, rate limiting, idempotency)    |
-|  Message Bus:   NATS JetStream (async notifications, DLQ)       |
-+-----------------------------------------------------------------+
+cmd/api/                      entrypoint: config, wiring, graceful shutdown
+internal/
+  platform/
+    config/                   env-only configuration (caarlos0/env)
+    logger/                   structured zap logging
+    database/                 pgx pool
+    redis/                    cache / rate limiting / idempotency support
+    nats/                     JetStream connection + stream provisioning
+    metrics/                  Prometheus registry + collectors
+    apperr/                   typed domain errors → HTTP mapping
+    db/sqlc/                  generated data access (sqlc, pgx/v5)
+  auth/                       register/login/refresh, JWT HS256, RBAC middleware
+  patient/                    patient CRUD + search
+  doctor/                     profiles, weekly schedules, exceptions, availability engine
+  appointment/                booking (tx-safe), lifecycle state machine, reschedule/cancel
+  notification/               event forwarder, durable JetStream worker, retry/DLQ
+  server/                     router assembly, middleware chain, health endpoints
+db/
+  migrations/                 versioned SQL (golang-migrate)
+  queries/                    sqlc sources per domain
 ```
 
-## Features
+### Concurrency & integrity model
 
-| Domain        | Capabilities |
-|---------------|--------------|
-| Patients      | CRUD, search, medical notes, emergency contacts |
-| Doctors       | Profiles, specializations, schedules, availability |
-| Appointments  | Booking, cancellation, rescheduling, concurrency-safe (exclusion constraint) |
-| Schedules     | Recurring patterns, exceptions (holidays, sick days) |
-| Auth          | JWT (access + refresh), role-based access (Patient, Doctor, Staff, Admin) |
-| Notifications | Async via NATS JetStream, retries, DLQ, idempotency |
-| Observability | Structured logging, Prometheus metrics, OpenTelemetry tracing, health/ready endpoints |
+| Concern | Mechanism | SRS |
+|---|---|---|
+| Double booking | `no_overlapping_appointments` exclusion constraint (GiST on `doctor_id` + `tstzrange`) — DB rejects overlaps even under fully concurrent requests | BR-01, FR-APT-05/06 |
+| Client retries | `Idempotency-Key` header → response persisted in `idempotency_keys` inside the same transaction as the booking; racing requests replay after commit | BR-07, FR-APT-07 |
+| State machine | explicit transition table (`scheduled → confirmed → completed/cancelled/no_show`) + optimistic `version` column | BR-03/04 |
+| Availability | recurring weekly schedules − schedule exceptions − booked appointments, computed per slot | FR-DOC-03 |
 
 ---
 
@@ -38,46 +48,27 @@
 
 | Layer         | Technology |
 |---------------|------------|
-| Language      | Go 1.22+ |
-| Router        | Chi v5 |
-| Database      | PostgreSQL 16 + pgx + sqlc |
+| Language      | Go 1.25 |
+| Router        | Gin |
+| Database      | PostgreSQL 16 + pgx/v5 + sqlc |
 | Migrations    | golang-migrate |
 | Cache         | Redis 7 |
-| Message Bus   | NATS JetStream |
-| Auth          | JWT (RS256) + bcrypt |
-| Observability | OpenTelemetry, Prometheus, Zap |
-| CI/CD         | GitHub Actions |
-| Container     | Docker + Docker Compose |
+| Message Bus   | NATS JetStream (work-queue retention, dedupe via `Nats-Msg-Id`, DLQ) |
+| Auth          | JWT HS256 + bcrypt |
+| Observability | Zap (structured JSON), Prometheus `/metrics`, health/readiness probes |
+| CI            | GitHub Actions (fmt, vet, sqlc drift check, race tests) |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Go 1.22+
-- Docker + Docker Compose
-- PostgreSQL 16 (or use Docker)
-- Redis 7 (or use Docker)
-- NATS JetStream (or use Docker)
-
-### Local Development
-
 ```bash
-# Clone and enter
-git clone https://github.com/PandaX185/clinic-management.git
-cd clinic-management
+cp .env.example .env          # set JWT_SECRET / JWT_REFRESH_SECRET (openssl rand -hex 32)
 
-# Start dependencies
-docker-compose up -d
-
-# Run migrations
+docker compose up -d postgres redis nats   # or: docker compose up -d  (full stack)
 make migrate-up
-
-# Start server
 make run
 
-# Health check
 curl http://localhost:8080/health
 curl http://localhost:8080/ready
 ```
@@ -86,125 +77,47 @@ curl http://localhost:8080/ready
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| DATABASE_URL | postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable | PostgreSQL connection |
-| REDIS_URL | redis://localhost:6379 | Redis connection |
-| NATS_URL | nats://localhost:4222 | NATS JetStream connection |
-| JWT_SECRET | required | JWT signing secret |
-| JWT_REFRESH_SECRET | required | Refresh token secret |
-| LOG_LEVEL | info | Log level |
-| PORT | 8080 | HTTP port |
+| DATABASE_URL | required | PostgreSQL connection string |
+| REDIS_URL | redis://localhost:6379/0 | Redis connection |
+| NATS_URL | nats://localhost:4222 | NATS JetStream |
+| JWT_SECRET | required | Access-token signing key |
+| JWT_REFRESH_SECRET | required | Refresh-token signing key |
+| ACCESS_TOKEN_TTL / REFRESH_TOKEN_TTL | 15m / 168h | Token lifetimes |
+| PORT | 8080 | HTTP listen port |
+| LOG_LEVEL / LOG_FORMAT | info / json | Logging |
+| RATE_LIMIT_PER_MINUTE | 60 | Per-IP fixed window |
+| IDEMPOTENCY_TTL | 24h | Booking replay window |
 
 ---
 
-## API Documentation
+## API Overview
+
+Base path: `/api/v1`
 
 | Resource | Endpoints |
 |----------|-----------|
-| Auth | POST /api/v1/auth/login, POST /api/v1/auth/refresh |
-| Patients | POST /api/v1/patients, GET /api/v1/patients/{id}, PATCH /api/v1/patients/{id} |
-| Doctors | POST /api/v1/doctors, GET /api/v1/doctors, GET /api/v1/doctors/{id}/availability |
-| Appointments | POST /api/v1/appointments, GET /api/v1/appointments, GET /api/v1/appointments/{id}, POST /api/v1/appointments/{id}/cancel, POST /api/v1/appointments/{id}/reschedule |
-| Health | GET /health, GET /ready |
+| Auth | POST /auth/register · POST /auth/login · POST /auth/refresh · GET /auth/me |
+| Patients *(staff)* | POST/PATCH/DELETE /patients · GET /patients · GET /patients/{id} |
+| Doctors *(admin/staff writes)* | GET /doctors · GET /doctors/{id}/availability?from&to · POST/{id}/schedules · POST/{id}/exceptions |
+| Appointments | POST /appointments (`Idempotency-Key` honored) · GET /appointments?patient_id&status&from&to · GET /{id} · POST /{id}/cancel · POST /{id}/reschedule · POST /{id}/confirm · POST /{id}/complete · POST /{id}/no-show |
+| Ops | GET /health · GET /ready · GET /metrics |
 
-> **Full OpenAPI 3.1 spec:** [api/openapi.yaml](api/openapi.yaml) (work in progress)
+Errors follow one shape: `{"error": "..."}` with status from the typed domain error (400/401/403/404/409/500).
 
 ---
 
 ## Testing
 
 ```bash
-# Run all tests with race detector
-make test-race
-
-# Run specific package
-go test ./internal/... -race
-
-# Coverage report
-make test-coverage
+make test-race       # all tests with race detector
+make test-coverage   # HTML coverage report
+go test ./internal/appointment/ -run TestCanTransition -v
 ```
 
----
-
-## Docker
-
-```bash
-# Build image
-make docker-build
-
-# Run with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f api
-```
-
----
-
-## Project Structure
-
-```
-clinic-management/
-├── cmd/
-│   └── api/                 # Application entry point
-├── internal/
-│   ├── auth/                # JWT auth, login/refresh, middleware
-│   ├── appointment/         # Appointment domain logic
-│   ├── doctor/              # Doctor domain logic
-│   ├── patient/             # Patient domain logic
-│   ├── notification/        # NATS JetStream notifications
-│   ├── platform/            # Shared: config, db, redis, nats, logging, metrics, tracing
-│   └── ...                  # Other domains (patient, doctor, etc.)
-├── migrations/              # SQL migrations (golang-migrate)
-├── api/
-│   └── openapi.yaml         # OpenAPI 3.1 specification
-├── .github/
-│   ├── workflows/           # GitHub Actions CI
-│   └── pull_request_template.md
-├── docker-compose.yml
-├── Dockerfile
-├── Makefile
-├── sqlc.yaml
-├── go.mod / go.sum
-└── CONTRIBUTING.md
-```
-
----
-
-## Security
-
-- **Passwords**: bcrypt (cost 12)
-- **Tokens**: JWT RS256, short-lived access (15m) + rotating refresh (7d)
-- **Concurrency**: PostgreSQL exclusion constraints (btree_gist)
-- **Idempotency**: Redis-backed keys with TTL
-- **Rate limiting**: Redis-backed, per-IP and per-user
-- **Secrets**: Environment variables only, never in code
-
----
-
-## Observability
-
-| Signal | Implementation |
-|--------|---------------|
-| Logs | Structured JSON (Zap), request IDs, correlation IDs |
-| Metrics | Prometheus (HTTP latency, DB latency, cache hit/miss, queue depth) |
-| Traces | OpenTelemetry (HTTP, DB, Redis, NATS spans) |
-| Health | /health (liveness), /ready (readiness + deps) |
+Critical invariants under test: lifecycle transitions (terminal states frozen), availability slot expansion/exception cutting/past filtering, JWT type confusion and cross-secret rejection.
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, branch strategy, and PR process.
-
----
-
-## Contact
-
-**Clinic Appointment System** — Production-grade healthcare backend  
-GitHub: [PandaX185/clinic-management](https://github.com/PandaX185/clinic-management)
+MIT — see [LICENSE](LICENSE).

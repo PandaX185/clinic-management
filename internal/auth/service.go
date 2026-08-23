@@ -5,134 +5,158 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
 
-// Config carries the auth tunables shared by service and middleware.
-type Config struct {
-	AccessSecret  []byte
-	RefreshSecret []byte
-	AccessTTL     time.Duration
-	RefreshTTL    time.Duration
+const (
+	TokenTypeAccess  = "access"
+	TokenTypeRefresh = "refresh"
+)
+
+type TokenManager struct {
+	secret        []byte
+	refreshSecret []byte
+	accessTTL     time.Duration
+	refreshTTL    time.Duration
 }
 
-// Session is the result of a successful Register/Login/Refresh: a minted
-// token pair plus the authenticated user's data for the response.
-type Session struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresIn    int64 // access TTL in seconds
-	User         *User
-	Roles        []string
+func NewTokenManager(secret, refreshSecret string, accessTTL, refreshTTL time.Duration) *TokenManager {
+	return &TokenManager{
+		secret:        []byte(secret),
+		refreshSecret: []byte(refreshSecret),
+		accessTTL:     accessTTL,
+		refreshTTL:    refreshTTL,
+	}
 }
 
-// AuthService holds the auth business logic. Transport (handler.go) depends
-// on it; it depends only on the ports in ports.go.
-type AuthService struct {
-	users  UserStore
-	tokens TokenStore
-	cfg    Config
+type Service struct {
+	repo   Repository
+	tokens *TokenManager
 }
 
-func NewService(users UserStore, tokens TokenStore, cfg Config) *AuthService {
-	return &AuthService{users: users, tokens: tokens, cfg: cfg}
+func NewService(repo Repository, tokens *TokenManager) *Service {
+	return &Service{repo: repo, tokens: tokens}
 }
 
-// NormalizeEmail lowercases and trims an email for canonical storage/lookup.
-func NormalizeEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+func (s *Service) Register(ctx context.Context, in RegisterInput) (*User, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return s.repo.CreateUser(ctx, strings.ToLower(in.Email), string(hash), in.FullName, in.Phone, in.InitialRole)
 }
 
-// Register creates a new user and issues them a token session.
-func (s *AuthService) Register(ctx context.Context, email, password, fullName, phone string) (*Session, error) {
-	email = NormalizeEmail(email)
-
-	hash, err := HashPassword(password)
+func (s *Service) Login(ctx context.Context, in LoginInput) (*TokenPair, error) {
+	user, err := s.repo.GetUserByEmail(ctx, strings.ToLower(in.Email))
 	if err != nil {
 		return nil, err
 	}
-	user, err := s.users.CreateUser(ctx, email, hash, fullName, phone)
+	if !user.isActive() {
+		return nil, apperr.Unauthorized("account is deactivated")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(in.Password)); err != nil {
+		return nil, apperr.Unauthorized("invalid credentials")
+	}
+	return s.tokens.Issue(user)
+}
+
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
+	claims, err := s.tokens.Parse(refreshToken, TokenTypeRefresh)
 	if err != nil {
-		return nil, err // ErrDuplicateEmail propagates to the transport mapper
+		return nil, apperr.Unauthorized("invalid or expired refresh token")
 	}
-	return s.issueSession(ctx, user)
-}
-
-// Login verifies credentials and returns a token session. Unknown email and
-// wrong password yield the same ErrInvalidCredentials (no user enumeration).
-func (s *AuthService) Login(ctx context.Context, email, password string) (*Session, error) {
-	email = NormalizeEmail(email)
-
-	user, err := s.users.GetUserByEmail(ctx, email)
-	if err != nil || VerifyPassword(password, user.PasswordHash) != nil {
-		return nil, ErrInvalidCredentials
-	}
-	if !user.IsActive {
-		return nil, ErrAccountDisabled
-	}
-	return s.issueSession(ctx, user)
-}
-
-// Refresh validates the refresh token, checks it has not been revoked,
-// then rotates it: the old jti is consumed and a fresh pair issued.
-func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*Session, error) {
-	claims, err := ParseToken(s.cfg.RefreshSecret, refreshToken)
-	if err != nil || claims.Type != TokenTypeRefresh {
-		return nil, ErrRefreshInvalid
-	}
-	// Atomically check-and-consume so two concurrent requests with the same
-	// token cannot both rotate (GETDEL semantics).
-	storedUserID, err := s.tokens.ConsumeRefresh(ctx, claims.ID)
-	if err != nil {
-		if errors.Is(err, ErrRefreshNotFound) {
-			return nil, ErrRefreshRevoked
-		}
-		return nil, err
-	}
-	if storedUserID != claims.Subject {
-		return nil, ErrRefreshRevoked
-	}
-
-	user, err := s.users.GetUserByEmail(ctx, claims.Email)
-	if err != nil {
-		return nil, ErrInvalidCredentials
-	}
-	return s.issueSession(ctx, user)
-}
-
-// Logout revokes the supplied refresh token if it parses as valid.
-func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
-	claims, err := ParseToken(s.cfg.RefreshSecret, refreshToken)
-	if err != nil || claims.Type != TokenTypeRefresh {
-		return nil // nothing to revoke; idempotent success
-	}
-	return s.tokens.DeleteRefresh(ctx, claims.ID)
-}
-
-// issueSession loads roles, mints the token pair, and persists the refresh
-// jti for revocation tracking.
-func (s *AuthService) issueSession(ctx context.Context, user *User) (*Session, error) {
-	roles, err := s.users.GetUserRoles(ctx, user.ID)
+	user, err := s.repo.GetUserByID(ctx, claims.UserID)
 	if err != nil {
 		return nil, err
 	}
-	if roles == nil {
-		roles = []string{}
+	if !user.isActive() {
+		return nil, apperr.Unauthorized("account is deactivated")
+	}
+	return s.tokens.Issue(user)
+}
+
+func (s *Service) ParseAccessToken(token string) (*Claims, error) {
+	return s.tokens.Parse(token, TokenTypeAccess)
+}
+
+func (m *TokenManager) Issue(u *User) (*TokenPair, error) {
+	roles := make([]string, len(u.Roles))
+	for i, r := range u.Roles {
+		roles[i] = string(r)
+	}
+	now := time.Now()
+
+	access := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"uid":   u.ID.String(),
+		"roles": roles,
+		"typ":   TokenTypeAccess,
+		"iat":   now.Unix(),
+		"exp":   now.Add(m.accessTTL).Unix(),
+	})
+	accessStr, err := access.SignedString(m.secret)
+	if err != nil {
+		return nil, apperr.Internal(err)
 	}
 
-	access, refresh, refreshJTI, err := IssuePair(
-		s.cfg.AccessSecret, s.cfg.RefreshSecret,
-		user.ID.String(), user.Email, roles,
-		s.cfg.AccessTTL, s.cfg.RefreshTTL,
-	)
+	refresh := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"uid": u.ID.String(),
+		"typ": TokenTypeRefresh,
+		"iat": now.Unix(),
+		"exp": now.Add(m.refreshTTL).Unix(),
+	})
+	refreshStr, err := refresh.SignedString(m.refreshSecret)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Internal(err)
 	}
-	if err := s.tokens.SaveRefresh(ctx, refreshJTI, user.ID.String(), s.cfg.RefreshTTL); err != nil {
-		return nil, err
-	}
-	return &Session{
-		AccessToken: access, RefreshToken: refresh,
-		ExpiresIn: int64(s.cfg.AccessTTL.Seconds()),
-		User:      user, Roles: roles,
+
+	return &TokenPair{
+		AccessToken:  accessStr,
+		RefreshToken: refreshStr,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(m.accessTTL.Seconds()),
 	}, nil
 }
+
+func (m *TokenManager) Parse(token, expectedType string) (*Claims, error) {
+	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		if expectedType == TokenTypeRefresh {
+			return m.refreshSecret, nil
+		}
+		return m.secret, nil
+	})
+	if err != nil || !parsed.Valid {
+		return nil, errors.New("invalid token")
+	}
+	mapClaims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("invalid claims")
+	}
+	typ, _ := mapClaims["typ"].(string)
+	if typ != expectedType {
+		return nil, errors.New("wrong token type")
+	}
+	uidStr, _ := mapClaims["uid"].(string)
+	uid, err := uuid.Parse(uidStr)
+	if err != nil {
+		return nil, errors.New("invalid subject")
+	}
+	var roles []string
+	if raw, ok := mapClaims["roles"].([]any); ok {
+		for _, r := range raw {
+			if rs, ok := r.(string); ok {
+				roles = append(roles, rs)
+			}
+		}
+	}
+	return &Claims{UserID: uid, Roles: roles, Type: typ}, nil
+}
+
+func (u *User) isActive() bool { return u.IsActive }

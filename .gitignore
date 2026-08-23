@@ -1,33 +1,19 @@
-# Build artifacts
-/bin/
-*.exe
-*.test
-*.out
-
-# Sprint board notes
-/board/
-
-# Implementation plans (local workflow artifacts)
-/plan/
-
-# Meeting notes / non-technical docs
-/docs/
-
-# Scratch SQL experiments
-/uuidv7_*.sql
+# Binaries
+bin/
+api
+coverage.out
+coverage.html
 
 # Environment & secrets
 .env
-.env.*
-config.local.yaml
-
-# Logs
-*.log
+.env.local
 
 # IDE
 .idea/
-.vscode/
 *.swp
 
 # OS
 .DS_Store
+
+# Go workspace
+go.work.sum

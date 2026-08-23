@@ -6,24 +6,36 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-// Config holds all runtime configuration, loaded exclusively from
-// environment variables (see .env.example at the repo root).
 type Config struct {
-	Port             string        `env:"PORT" envDefault:"8080"`
-	LogLevel         string        `env:"LOG_LEVEL" envDefault:"info"`
-	DatabaseURL      string        `env:"DATABASE_URL,notEmpty"`
-	RedisURL         string        `env:"REDIS_URL,notEmpty"`
-	NATSURL          string        `env:"NATS_URL,notEmpty"`
+	Env  string `env:"ENV" envDefault:"development"`
+	Port string `env:"PORT" envDefault:"8080"`
+
+	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
+	Format   string `env:"LOG_FORMAT" envDefault:"json"`
+
+	DatabaseURL string `env:"DATABASE_URL,notEmpty"`
+	RedisURL    string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
+	NATSURL     string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
+
 	JWTSecret        string        `env:"JWT_SECRET,notEmpty"`
 	JWTRefreshSecret string        `env:"JWT_REFRESH_SECRET,notEmpty"`
-	JWTAccessTTL     time.Duration `env:"JWT_ACCESS_TTL" envDefault:"15m"`
-	JWTRefreshTTL    time.Duration `env:"JWT_REFRESH_TTL" envDefault:"168h"`
+	AccessTokenTTL   time.Duration `env:"ACCESS_TOKEN_TTL" envDefault:"15m"`
+	RefreshTokenTTL  time.Duration `env:"REFRESH_TOKEN_TTL" envDefault:"168h"`
+
+	BcryptCost int `env:"BCRYPT_COST" envDefault:"12"`
+
+	IdempotencyTTL      time.Duration `env:"IDEMPOTENCY_TTL" envDefault:"24h"`
+	RateLimitPerMinute  int           `env:"RATE_LIMIT_PER_MINUTE" envDefault:"60"`
+	RateLimitAuthMinute int           `env:"RATE_LIMIT_AUTH_PER_MINUTE" envDefault:"10"`
+
+	DefaultSlotMinutes int `env:"DEFAULT_SLOT_MINUTES" envDefault:"30"`
+
+	ReadTimeout    time.Duration `env:"READ_TIMEOUT" envDefault:"10s"`
+	WriteTimeout   time.Duration `env:"WRITE_TIMEOUT" envDefault:"10s"`
+	IdleTimeout    time.Duration `env:"IDLE_TIMEOUT" envDefault:"120s"`
+	ShutdownPeriod time.Duration `env:"SHUTDOWN_PERIOD" envDefault:"30s"`
 }
 
-func Load() (*Config, error) {
-	var cfg Config
-	if err := env.Parse(&cfg); err != nil {
-		return nil, err
-	}
-	return &cfg, nil
+func Load() (Config, error) {
+	return env.ParseAs[Config]()
 }

@@ -56,12 +56,15 @@ func newRouter(
 	r.GET("/health", healthHandler)
 	r.GET("/ready", readyHandler(dbp, redisP))
 
-	authHandler := auth.NewHandler(users, tokens, auth.Config{
-		AccessSecret:  []byte(cfg.JWTSecret),
-		RefreshSecret: []byte(cfg.JWTRefreshSecret),
-		AccessTTL:     cfg.JWTAccessTTL,
-		RefreshTTL:    cfg.JWTRefreshTTL,
-	})
+	authHandler := auth.NewHandler(auth.NewService(
+		users, tokens,
+		auth.Config{
+			AccessSecret:  []byte(cfg.JWTSecret),
+			RefreshSecret: []byte(cfg.JWTRefreshSecret),
+			AccessTTL:     cfg.JWTAccessTTL,
+			RefreshTTL:    cfg.JWTRefreshTTL,
+		},
+	))
 
 	api := r.Group("/api/v1")
 

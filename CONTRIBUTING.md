@@ -165,6 +165,30 @@ make sqlc-generate
 
 ## ✅ Code Standards
 
+### Module Structure (Clean Architecture, per module)
+
+Each domain module under `internal/<module>/` is flat (no service/ or repository/
+subfolders) and follows the auth module's shape:
+
+| File | Responsibility |
+|------|----------------|
+| `ports.go` | Domain types + store/service interfaces ("ports") + sentinel errors. The module owns its interfaces; implementations depend on them, not the reverse. |
+| `service.go` | `AuthService`-style business logic. Depends only on ports — never on gin, sqlc, redis, or drivers. Returns sentinel errors. |
+| `dto.go` | Request/response structs. Live at the transport edge only; services speak domain types. |
+| `handler.go` | Thin HTTP transport: bind → call service → map errors to status codes via a single error-mapping func. |
+| `sqlstore.go` / `<driver>store.go` | Adapter implementing the port with a concrete driver; translates driver errors into sentinel errors. |
+| `middleware.go` | Module-specific middleware (stays inside the module that owns it). |
+| Tests | Alongside the code: `service_test.go` covers business rules without HTTP; `handler_test.go` covers binding/status mapping with fakes. |
+
+Rules:
+1. **Dependency direction**: handler → service → ports ← adapters. Nothing in the
+   module imports another module except through its exported service/interface.
+2. **No business logic in handlers** — if a handler has an `if` about domain
+   rules, it belongs in the service.
+3. **Sentinel errors** (`ErrDuplicateEmail`-style) cross layer boundaries;
+   transport maps them to status codes centrally.
+4. New modules copy this template.
+
 ### Go Style
 - Follow [Effective Go](https://go.dev/doc/effective_go) and [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - `gofmt` / `goimports` enforced via `make fmt`

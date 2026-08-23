@@ -44,7 +44,7 @@ func (s *SQLUserStore) GetUserByEmail(ctx context.Context, email string) (*User,
 	u, err := s.q.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}

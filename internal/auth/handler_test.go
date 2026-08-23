@@ -92,7 +92,7 @@ var testCfg = Config{
 
 func newTestHandler() (*Handler, *fakeUserStore, *fakeTokenStore) {
 	users, tokens := newFakeUsers(), newFakeTokens()
-	return NewHandler(users, tokens, testCfg), users, tokens
+	return NewHandler(NewService(users, tokens, testCfg)), users, tokens
 }
 
 func init() {

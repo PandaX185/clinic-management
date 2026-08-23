@@ -31,6 +31,10 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	}
 }
 
+func (h *Handler) RegisterProtectedRoutes(g *gin.RouterGroup) {
+	g.GET("/auth/me", h.Me)
+}
+
 func (h *Handler) Register(c *gin.Context) {
 	var in RegisterInput
 	if err := c.ShouldBindJSON(&in); err != nil {
@@ -82,17 +86,17 @@ func (h *Handler) Me(c *gin.Context) {
 		c.Error(apperr.Unauthorized("missing identity"))
 		return
 	}
-	user, err := h.svc.repo.GetUserByID(c.Request.Context(), mustParseID(userID))
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		c.Error(apperr.Unauthorized("invalid identity"))
+		return
+	}
+	user, err := h.svc.Me(c.Request.Context(), uid)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, toUserResponse(user))
-}
-
-func mustParseID(s string) uuid.UUID {
-	id, _ := uuid.Parse(s)
-	return id
 }
 
 type userResponse struct {

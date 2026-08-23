@@ -80,6 +80,17 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 	return s.tokens.Issue(user)
 }
 
+func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !user.isActive() {
+		return nil, apperr.Unauthorized("account is deactivated")
+	}
+	return user, nil
+}
+
 func (s *Service) ParseAccessToken(token string) (*Claims, error) {
 	return s.tokens.Parse(token, TokenTypeAccess)
 }

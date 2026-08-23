@@ -24,11 +24,8 @@ type Config struct {
 
 	BcryptCost int `env:"BCRYPT_COST" envDefault:"12"`
 
-	IdempotencyTTL      time.Duration `env:"IDEMPOTENCY_TTL" envDefault:"24h"`
-	RateLimitPerMinute  int           `env:"RATE_LIMIT_PER_MINUTE" envDefault:"60"`
-	RateLimitAuthMinute int           `env:"RATE_LIMIT_AUTH_PER_MINUTE" envDefault:"10"`
-
-	DefaultSlotMinutes int `env:"DEFAULT_SLOT_MINUTES" envDefault:"30"`
+	IdempotencyTTL     time.Duration `env:"IDEMPOTENCY_TTL" envDefault:"24h"`
+	RateLimitPerMinute int           `env:"RATE_LIMIT_PER_MINUTE" envDefault:"60"`
 
 	ReadTimeout    time.Duration `env:"READ_TIMEOUT" envDefault:"10s"`
 	WriteTimeout   time.Duration `env:"WRITE_TIMEOUT" envDefault:"10s"`

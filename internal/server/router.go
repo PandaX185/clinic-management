@@ -46,6 +46,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	deps.PatientH.RegisterRoutes(protected, staffOnly)
 	deps.DoctorH.RegisterRoutes(protected, staffOnly)
 	deps.AppointH.RegisterRoutes(protected)
+	deps.AuthH.RegisterProtectedRoutes(protected)
 
 	return r
 }

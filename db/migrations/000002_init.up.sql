@@ -3,10 +3,7 @@
 -- Concurrency-critical invariants are enforced in the database (BR-08):
 --   * no_overlapping_appointments exclusion constraint  -> BR-01
 --   * idempotency_keys unique constraint                -> BR-07
-
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
+-- Requires extensions from 000000_extensions (btree_gist, pgcrypto).
 
 -- ---------------------------------------------------------------------------
 -- Identity & access (FR-AUTH-01..05)
@@ -68,9 +65,9 @@ CREATE TABLE patients (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_patients_full_name ON patients(full_name);
-CREATE INDEX idx_doctors_specialization ON doctors(specialization);
-CREATE INDEX idx_doctors_is_active ON doctors(is_active);
+-- NOTE: no indexes on searchable text columns (full_name, specialization,
+-- is_active). Current queries scan small tables; revisit with pg_trgm GIN
+-- if ILIKE '%term%' search ever needs index support.
 
 -- Recurring weekly availability (day_of_week: 0 = Sunday .. 6 = Saturday)
 CREATE TABLE doctor_schedules (
@@ -98,6 +95,7 @@ CREATE TABLE doctor_schedule_exceptions (
     end_time TIME,
     reason VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT valid_exception_hours CHECK (
         is_unavailable OR (start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time)
     )
@@ -214,6 +212,8 @@ CREATE TRIGGER trg_doctors_updated_at BEFORE UPDATE ON doctors
 CREATE TRIGGER trg_patients_updated_at BEFORE UPDATE ON patients
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_doctor_schedules_updated_at BEFORE UPDATE ON doctor_schedules
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_doctor_schedule_exceptions_updated_at BEFORE UPDATE ON doctor_schedule_exceptions
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_appointments_updated_at BEFORE UPDATE ON appointments
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();

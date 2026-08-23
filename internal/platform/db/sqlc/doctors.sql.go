@@ -87,7 +87,7 @@ func (q *Queries) CreateDoctorSchedule(ctx context.Context, arg CreateDoctorSche
 const createScheduleException = `-- name: CreateScheduleException :one
 INSERT INTO doctor_schedule_exceptions (doctor_id, exception_date, is_unavailable, start_time, end_time, reason)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, doctor_id, exception_date, is_unavailable, start_time, end_time, reason, created_at
+RETURNING id, doctor_id, exception_date, is_unavailable, start_time, end_time, reason, created_at, updated_at
 `
 
 type CreateScheduleExceptionParams struct {
@@ -118,6 +118,7 @@ func (q *Queries) CreateScheduleException(ctx context.Context, arg CreateSchedul
 		&i.EndTime,
 		&i.Reason,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -270,7 +271,7 @@ func (q *Queries) ListDoctors(ctx context.Context, arg ListDoctorsParams) ([]Lis
 }
 
 const listScheduleExceptions = `-- name: ListScheduleExceptions :many
-SELECT id, doctor_id, exception_date, is_unavailable, start_time, end_time, reason, created_at FROM doctor_schedule_exceptions
+SELECT id, doctor_id, exception_date, is_unavailable, start_time, end_time, reason, created_at, updated_at FROM doctor_schedule_exceptions
 WHERE doctor_id = $1 AND exception_date BETWEEN $2 AND $3
 ORDER BY exception_date
 `
@@ -299,6 +300,7 @@ func (q *Queries) ListScheduleExceptions(ctx context.Context, arg ListScheduleEx
 			&i.EndTime,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

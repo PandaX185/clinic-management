@@ -69,6 +69,7 @@ type DoctorScheduleException struct {
 	EndTime       pgtype.Time
 	Reason        *string
 	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type IdempotencyKey struct {

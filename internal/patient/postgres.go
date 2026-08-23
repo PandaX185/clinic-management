@@ -7,6 +7,7 @@ import (
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
@@ -89,6 +90,10 @@ func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Patient, 
 func (r *PostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	rows, err := r.q.DeletePatient(ctx, id)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return apperr.Conflict("patient has appointment history and cannot be deleted")
+		}
 		return apperr.Internal(err)
 	}
 	if rows == 0 {

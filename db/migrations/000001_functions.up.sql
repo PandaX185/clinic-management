@@ -1,8 +1,6 @@
 -- Custom UUIDv7 generator: time-ordered primary keys, index-friendly.
 -- Pure SQL body so both golang-migrate and sqlc can process this file.
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
+-- Requires extensions from 000000_extensions (pgcrypto).
 CREATE FUNCTION uuid_generate_v7() RETURNS uuid AS $func$
   SELECT encode(
     set_bit(

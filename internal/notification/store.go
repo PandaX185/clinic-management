@@ -2,18 +2,31 @@ package notification
 
 import (
 	"context"
+
+	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgresStore persists notification records; nats_msg_id carries a unique
 // constraint so duplicate publishes collapse into one row (FR-NOT-05).
 type PostgresStore struct {
-	q *db.Queries
+	scoped *database.ScopedPool
 }
 
-func NewPostgresStore(pool db.DBTX) *PostgresStore {
-	return &PostgresStore{q: db.New(pool)}
+func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore {
+	return &PostgresStore{scoped: database.NewScopedPool(pool)}
+}
+
+// withTenant runs fn against the tenant schema from context. The
+// EventForwarder publishes from within a tenant-scoped request, so the
+// notifications row lands in the right clinic's schema.
+func (s *PostgresStore) withTenant(ctx context.Context, fn func(q *db.Queries) error) error {
+	return s.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		return fn(db.New(tx))
+	})
 }
 
 // CreatePending persists a notification record using msg.ID as the primary
@@ -28,37 +41,58 @@ func (s *PostgresStore) CreatePending(ctx context.Context, msg Message) (uuid.UU
 		id := msg.AppointmentID
 		apptID = &id
 	}
-	row, err := s.q.InsertNotification(ctx, db.InsertNotificationParams{
-		ID:            msg.ID,
-		AppointmentID: apptID,
-		Channel:       string(msg.Channel),
-		Recipient:     msg.Recipient,
-		Subject:       subjectStr,
-		Body:          msg.Body,
-		MsgID:         msg.ID.String(),
+	var outID uuid.UUID
+	err := s.withTenant(ctx, func(qq *db.Queries) error {
+		row, err := qq.InsertNotification(ctx, db.InsertNotificationParams{
+			ID:            msg.ID,
+			AppointmentID: apptID,
+			Channel:       string(msg.Channel),
+			Recipient:     msg.Recipient,
+			Subject:       subjectStr,
+			Body:          msg.Body,
+			MsgID:         msg.ID.String(),
+		})
+		if err != nil {
+			return err
+		}
+		outID = row.ID
+		return nil
 	})
 	if err != nil {
 		return uuid.Nil, err
 	}
-	return row.ID, nil
+	return outID, nil
 }
 
 func (s *PostgresStore) GetByMsgID(ctx context.Context, id uuid.UUID) (*Record, error) {
-	idStr := id.String()
-	row, err := s.q.GetNotificationByMsgID(ctx, &idStr)
-	if err != nil {
-		return nil, err
-	}
-	return &Record{ID: row.ID, Status: row.Status, Attempts: row.Attempts}, nil
+	var rec *Record
+	err := s.withTenant(ctx, func(qq *db.Queries) error {
+		idStr := id.String()
+		row, err := qq.GetNotificationByMsgID(ctx, &idStr)
+		if err != nil {
+			return err
+		}
+		rec = &Record{
+			ID: row.ID, Status: row.Status, Attempts: row.Attempts,
+			Channel: Channel(row.Channel), Recipient: row.Recipient, Body: row.Body,
+		}
+		if row.Subject != nil {
+			rec.Subject = *row.Subject
+		}
+		return nil
+	})
+	return rec, err
 }
 
 func (s *PostgresStore) MarkStatus(ctx context.Context, id uuid.UUID, status string, lastErr *string) error {
-	switch status {
-	case StatusSent:
-		return s.q.MarkNotificationSent(ctx, id)
-	case StatusDeadLetter:
-		return s.q.MarkNotificationDead(ctx, db.MarkNotificationDeadParams{ID: id, LastError: lastErr})
-	default:
-		return s.q.MarkNotificationFailed(ctx, db.MarkNotificationFailedParams{ID: id, LastError: lastErr})
-	}
+	return s.withTenant(ctx, func(qq *db.Queries) error {
+		switch status {
+		case StatusSent:
+			return qq.MarkNotificationSent(ctx, id)
+		case StatusDeadLetter:
+			return qq.MarkNotificationDead(ctx, db.MarkNotificationDeadParams{ID: id, LastError: lastErr})
+		default:
+			return qq.MarkNotificationFailed(ctx, db.MarkNotificationFailedParams{ID: id, LastError: lastErr})
+		}
+	})
 }

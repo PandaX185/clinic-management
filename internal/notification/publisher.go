@@ -32,9 +32,13 @@ type Store interface {
 }
 
 type Record struct {
-	ID       uuid.UUID
-	Status   string
-	Attempts int32
+	ID        uuid.UUID
+	Status    string
+	Attempts  int32
+	Channel   Channel
+	Recipient string
+	Subject   string
+	Body      string
 }
 
 var _ appointment.EventPublisher = (*EventForwarder)(nil)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
@@ -49,11 +50,11 @@ func (noopPublisher) PublishAppointmentEvent(context.Context, appointment.Event)
 // auditWriter persists domain audit events (FR-APT-09). Audit failures are
 // logged upstream but never block the clinical workflow.
 type auditWriter struct {
-	q *db.Queries
+	scoped *database.ScopedPool
 }
 
 func newAuditWriter(pool *database.Pool) *auditWriter {
-	return &auditWriter{q: db.New(pool)}
+	return &auditWriter{scoped: database.NewScopedPool(pool)}
 }
 
 var _ appointment.AuditWriter = (*auditWriter)(nil)
@@ -70,13 +71,20 @@ func (w *auditWriter) Write(ctx context.Context, entry appointment.AuditEntry) e
 		details = json.RawMessage("{}")
 	}
 
-	return w.q.InsertAuditLog(ctx, db.InsertAuditLogParams{
-		ActorUserID: entry.ActorID,
-		Action:      entry.Action,
-		EntityType:  entry.EntityType,
-		EntityID:    entityID,
-		Details:     details,
+	err := w.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		qq := db.New(tx)
+		return qq.InsertAuditLog(ctx, db.InsertAuditLogParams{
+			ActorUserID: entry.ActorID,
+			Action:      entry.Action,
+			EntityType:  entry.EntityType,
+			EntityID:    entityID,
+			Details:     details,
+		})
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 var (

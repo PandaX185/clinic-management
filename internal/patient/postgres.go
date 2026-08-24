@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
+	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -88,8 +88,8 @@ func (r *PostgresRepository) Update(ctx context.Context, id uuid.UUID, in Update
 
 func (r *PostgresRepository) List(ctx context.Context, q ListQuery) ([]Patient, int64, error) {
 	var (
-		items    []Patient
-		total    int64
+		items []Patient
+		total int64
 	)
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		qq := db.New(tx)

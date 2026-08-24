@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
+	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"

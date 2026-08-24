@@ -59,6 +59,14 @@ UPDATE notifications SET status = 'dead_letter', attempts = attempts + 1, last_e
 -- name: GetNotificationByMsgID :one
 SELECT * FROM notifications WHERE nats_msg_id = $1;
 
+-- name: GetPatientContactEmail :one
+-- Resolve the notification recipient: prefer the linked user account's
+-- email, fall back to the patients.phone column only for SMS later.
+SELECT u.email AS contact FROM appointments a
+JOIN patients p ON p.id = a.patient_id
+LEFT JOIN users u ON u.id = p.user_id
+WHERE a.id = $1;
+
 -- name: InsertAuditLog :exec
 INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details)
 VALUES ($1, $2, $3, $4, $5);

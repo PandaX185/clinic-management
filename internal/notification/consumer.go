@@ -74,7 +74,13 @@ func (c *Consumer) Handle(ctx context.Context, msgID uuid.UUID) error {
 		return nil
 	}
 
-	sendErr := c.provider.Send(ctx, Message{ID: msgID})
+	sendErr := c.provider.Send(ctx, Message{
+		ID:        msgID,
+		Channel:   rec.Channel,
+		Recipient: rec.Recipient,
+		Subject:   rec.Subject,
+		Body:      rec.Body,
+	})
 	if sendErr == nil {
 		return c.store.MarkStatus(ctx, rec.ID, StatusSent, nil)
 	}

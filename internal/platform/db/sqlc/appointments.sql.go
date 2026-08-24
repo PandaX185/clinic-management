@@ -174,6 +174,22 @@ func (q *Queries) GetNotificationByMsgID(ctx context.Context, natsMsgID *string)
 	return i, err
 }
 
+const getPatientContactEmail = `-- name: GetPatientContactEmail :one
+SELECT u.email AS contact FROM appointments a
+JOIN patients p ON p.id = a.patient_id
+LEFT JOIN users u ON u.id = p.user_id
+WHERE a.id = $1
+`
+
+// Resolve the notification recipient: prefer the linked user account's
+// email, fall back to the patients.phone column only for SMS later.
+func (q *Queries) GetPatientContactEmail(ctx context.Context, id uuid.UUID) (*string, error) {
+	row := q.db.QueryRow(ctx, getPatientContactEmail, id)
+	var contact *string
+	err := row.Scan(&contact)
+	return contact, err
+}
+
 const insertAuditLog = `-- name: InsertAuditLog :exec
 INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details)
 VALUES ($1, $2, $3, $4, $5)

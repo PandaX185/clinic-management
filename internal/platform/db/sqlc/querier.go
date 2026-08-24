@@ -32,6 +32,9 @@ type Querier interface {
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error)
 	GetNotificationByMsgID(ctx context.Context, natsMsgID *string) (Notification, error)
 	GetPatientByID(ctx context.Context, id uuid.UUID) (Patient, error)
+	// Resolve the notification recipient: prefer the linked user account's
+	// email, fall back to the patients.phone column only for SMS later.
+	GetPatientContactEmail(ctx context.Context, id uuid.UUID) (*string, error)
 	GetPatientIDByUserID(ctx context.Context, userID *uuid.UUID) (uuid.UUID, error)
 	// GetProfileForTenant / UpsertPatientProfile live in profile.sql and run
 	// with search_path pinned to the active tenant schema.

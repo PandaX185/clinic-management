@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
@@ -82,6 +83,23 @@ func (s *PostgresStore) GetByMsgID(ctx context.Context, id uuid.UUID) (*Record, 
 		return nil
 	})
 	return rec, err
+}
+
+// GetPatientContactEmail resolves the appointment patient's login email.
+func (s *PostgresStore) GetPatientContactEmail(ctx context.Context, apptID uuid.UUID) (string, error) {
+	var contact string
+	err := s.withTenant(ctx, func(qq *db.Queries) error {
+		c, err := qq.GetPatientContactEmail(ctx, apptID)
+		if err != nil {
+			return err
+		}
+		if c == nil || *c == "" {
+			return fmt.Errorf("no linked user email for appointment %s", apptID)
+		}
+		contact = *c
+		return nil
+	})
+	return contact, err
 }
 
 func (s *PostgresStore) MarkStatus(ctx context.Context, id uuid.UUID, status string, lastErr *string) error {

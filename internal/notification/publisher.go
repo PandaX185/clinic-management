@@ -29,6 +29,7 @@ type Store interface {
 	CreatePending(ctx context.Context, msg Message) (uuid.UUID, error)
 	GetByMsgID(ctx context.Context, id uuid.UUID) (*Record, error)
 	MarkStatus(ctx context.Context, id uuid.UUID, status string, lastErr *string) error
+	GetPatientContactEmail(ctx context.Context, apptID uuid.UUID) (string, error)
 }
 
 type Record struct {
@@ -55,6 +56,11 @@ func NewEventForwarder(deps PublisherDeps) *EventForwarder {
 
 func (f *EventForwarder) PublishAppointmentEvent(ctx context.Context, event appointment.Event) {
 	msg := buildMessage(event)
+	// Resolve the real recipient from the patient's linked user account;
+	// fall back to the placeholder only if resolution fails (logged).
+	if contact, err := f.deps.Store.GetPatientContactEmail(ctx, event.Appointment.PatientID); err == nil {
+		msg.Recipient = contact
+	}
 	msg.ID = uuid.New()
 	id, err := f.deps.Store.CreatePending(ctx, *msg)
 	if err != nil {

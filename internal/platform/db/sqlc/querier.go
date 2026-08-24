@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddTenantMember(ctx context.Context, arg AddTenantMemberParams) (UserTenant, error)
 	AssignUserRole(ctx context.Context, arg AssignUserRoleParams) error
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
 	CountPatients(ctx context.Context, search string) (int64, error)
@@ -19,6 +20,7 @@ type Querier interface {
 	CreateDoctorSchedule(ctx context.Context, arg CreateDoctorScheduleParams) (DoctorSchedule, error)
 	CreatePatient(ctx context.Context, arg CreatePatientParams) (Patient, error)
 	CreateScheduleException(ctx context.Context, arg CreateScheduleExceptionParams) (DoctorScheduleException, error)
+	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeactivateDoctorSchedule(ctx context.Context, id uuid.UUID) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) error
@@ -26,8 +28,11 @@ type Querier interface {
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	GetDoctorByID(ctx context.Context, id uuid.UUID) (GetDoctorByIDRow, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error)
+	GetMembership(ctx context.Context, arg GetMembershipParams) (GetMembershipRow, error)
 	GetNotificationByMsgID(ctx context.Context, natsMsgID *string) (Notification, error)
 	GetPatientByID(ctx context.Context, id uuid.UUID) (Patient, error)
+	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
+	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
@@ -37,13 +42,16 @@ type Querier interface {
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)
 	ListDoctorSchedules(ctx context.Context, doctorID uuid.UUID) ([]DoctorSchedule, error)
 	ListDoctors(ctx context.Context, arg ListDoctorsParams) ([]ListDoctorsRow, error)
+	ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsForUserRow, error)
 	ListScheduleExceptions(ctx context.Context, arg ListScheduleExceptionsParams) ([]DoctorScheduleException, error)
+	ListTenants(ctx context.Context) ([]Tenant, error)
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]string, error)
 	MarkNotificationDead(ctx context.Context, arg MarkNotificationDeadParams) error
 	MarkNotificationFailed(ctx context.Context, arg MarkNotificationFailedParams) error
 	MarkNotificationSent(ctx context.Context, id uuid.UUID) error
 	RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error)
 	SearchPatients(ctx context.Context, arg SearchPatientsParams) ([]Patient, error)
+	SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
 	UpdatePatient(ctx context.Context, arg UpdatePatientParams) (Patient, error)
 }

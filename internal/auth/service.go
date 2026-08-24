@@ -95,6 +95,39 @@ func (s *Service) ParseAccessToken(token string) (*Claims, error) {
 	return s.tokens.Parse(token, TokenTypeAccess)
 }
 
+func (m *TokenManager) IssueForTenant(u *User, tenantID uuid.UUID, tenantSlug, role string) (*TokenPair, error) {
+	now := time.Now()
+	access := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"uid":   u.ID.String(),
+		"roles": []string{role},
+		"typ":   TokenTypeAccess,
+		"tid":   tenantID.String(),
+		"tslug": tenantSlug,
+		"iat":   now.Unix(),
+		"exp":   now.Add(m.accessTTL).Unix(),
+	})
+	accessStr, err := access.SignedString(m.secret)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	refresh := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"uid": u.ID.String(),
+		"typ": TokenTypeRefresh,
+		"iat": now.Unix(),
+		"exp": now.Add(m.refreshTTL).Unix(),
+	})
+	refreshStr, err := refresh.SignedString(m.refreshSecret)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return &TokenPair{
+		AccessToken:  accessStr,
+		RefreshToken: refreshStr,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(m.accessTTL.Seconds()),
+	}, nil
+}
+
 func (m *TokenManager) Issue(u *User) (*TokenPair, error) {
 	roles := make([]string, len(u.Roles))
 	for i, r := range u.Roles {
@@ -167,7 +200,15 @@ func (m *TokenManager) Parse(token, expectedType string) (*Claims, error) {
 			}
 		}
 	}
-	return &Claims{UserID: uid, Roles: roles, Type: typ}, nil
+	var tenantID uuid.UUID
+	if tidStr, ok := mapClaims["tid"].(string); ok {
+		tenantID, err = uuid.Parse(tidStr)
+		if err != nil {
+			return nil, errors.New("invalid tenant claim")
+		}
+	}
+	slug, _ := mapClaims["tslug"].(string)
+	return &Claims{UserID: uid, Roles: roles, Type: typ, TenantID: tenantID, TenantSlug: slug}, nil
 }
 
 func (u *User) isActive() bool { return u.IsActive }

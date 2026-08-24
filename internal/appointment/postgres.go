@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	"github.com/PandaX185/clinic-management/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,23 +18,30 @@ import (
 const idempotencyEndpoint = "POST /api/v1/appointments"
 
 type PostgresRepository struct {
-	pool *pgxpool.Pool
+	scoped *database.ScopedPool
 }
 
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{pool: pool}
+	return &PostgresRepository{scoped: database.NewScopedPool(pool)}
 }
 
+// GetByID reads one appointment inside the tenant schema resolved from the
+// request context (set by server.TenantMiddleware). A missing tenant scope
+// is a programming error and fails closed.
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Appointment, error) {
-	q := db.New(r.pool)
-	row, err := q.GetAppointmentByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperr.NotFound("appointment not found")
+	var out *Appointment
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		row, err := db.New(tx).GetAppointmentByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return apperr.NotFound("appointment not found")
+			}
+			return apperr.Internal(err)
 		}
-		return nil, apperr.Internal(err)
-	}
-	return fromRow(row), nil
+		out = fromRow(row)
+		return nil
+	})
+	return out, err
 }
 
 func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appointment, int64, error) {
@@ -51,28 +59,37 @@ func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appoi
 		params.ToTime = &to
 	}
 
-	q := db.New(r.pool)
-	total, err := q.CountAppointments(ctx, params)
-	if err != nil {
-		return nil, 0, apperr.Internal(err)
-	}
+	var items []Appointment
+	var total int64
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		q := db.New(tx)
+		var err error
+		total, err = q.CountAppointments(ctx, params)
+		if err != nil {
+			return apperr.Internal(err)
+		}
 
-	rows, err := q.ListAppointments(ctx, db.ListAppointmentsParams{
-		PatientID: params.PatientID,
-		DoctorID:  params.DoctorID,
-		Status:    params.Status,
-		FromTime:  params.FromTime,
-		ToTime:    params.ToTime,
-		Limit:     int32(query.Limit),
-		Offset:    int32(query.Offset),
+		rows, err := q.ListAppointments(ctx, db.ListAppointmentsParams{
+			PatientID: params.PatientID,
+			DoctorID:  params.DoctorID,
+			Status:    params.Status,
+			FromTime:  params.FromTime,
+			ToTime:    params.ToTime,
+			Limit:     int32(query.Limit),
+			Offset:    int32(query.Offset),
+		})
+		if err != nil {
+			return apperr.Internal(err)
+		}
+
+		items = make([]Appointment, 0, len(rows))
+		for i := range rows {
+			items = append(items, *fromRow(rows[i]))
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, 0, apperr.Internal(err)
-	}
-
-	items := make([]Appointment, 0, len(rows))
-	for i := range rows {
-		items = append(items, *fromRow(rows[i]))
+		return nil, 0, err
 	}
 	return items, total, nil
 }
@@ -88,10 +105,31 @@ func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appoi
 // if it races the original, serializes behind it via row-level locking on the
 // primary key and replays after commit.
 func (r *PostgresRepository) BookTx(ctx context.Context, p BookTxParams) (BookingResult, error) {
-	tx, err := r.pool.Begin(ctx)
+	var result BookingResult
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		res, err := bookInTx(ctx, tx, p)
+		if err != nil {
+			return err
+		}
+		result = res
+		return nil
+	})
 	if err != nil {
+		if be, ok := err.(*bookingError); ok {
+			return BookingResult{}, be.err
+		}
 		return BookingResult{}, apperr.Internal(err)
 	}
+	return result, nil
+}
+
+// bookingError wraps an apperr so BookTx can pass domain errors (409/400)
+// through the WithSchema closure untouched.
+type bookingError struct{ err error }
+
+func (e *bookingError) Error() string { return e.err.Error() }
+
+func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, error) {
 	defer tx.Rollback(ctx)
 
 	q := db.New(tx)
@@ -105,7 +143,7 @@ func (r *PostgresRepository) BookTx(ctx context.Context, p BookTxParams) (Bookin
 		case err == nil:
 			return BookingResult{Replayed: true, StoredStatus: int(stored.ResponseStatus), StoredBody: rawJSON(stored.ResponseBody)}, nil
 		case !errors.Is(err, pgx.ErrNoRows):
-			return BookingResult{}, apperr.Internal(err)
+			return BookingResult{}, wrapBooking(apperr.Internal(err))
 		}
 	}
 
@@ -120,12 +158,12 @@ func (r *PostgresRepository) BookTx(ctx context.Context, p BookTxParams) (Bookin
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23P01" {
-			return BookingResult{}, apperr.Conflict("the requested slot is no longer available")
+			return BookingResult{}, wrapBooking(apperr.Conflict("the requested slot is no longer available"))
 		}
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-			return BookingResult{}, apperr.Invalid("unknown patient or doctor")
+			return BookingResult{}, wrapBooking(apperr.Invalid("unknown patient or doctor"))
 		}
-		return BookingResult{}, apperr.Internal(err)
+		return BookingResult{}, wrapBooking(apperr.Internal(err))
 	}
 
 	appt := fromRow(created)
@@ -146,15 +184,10 @@ func (r *PostgresRepository) BookTx(ctx context.Context, p BookTxParams) (Bookin
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23P01" {
-			return BookingResult{}, apperr.Conflict("the requested slot is no longer available")
-		}
-		return BookingResult{}, apperr.Internal(err)
-	}
 	return BookingResult{Appointment: appt}, nil
 }
+
+func wrapBooking(err error) error { return &bookingError{err: err} }
 
 func rawJSON(v any) []byte {
 	if v == nil {
@@ -203,40 +236,51 @@ func nilText(s string) *string {
 }
 
 func (r *PostgresRepository) Transition(ctx context.Context, p TransitionParams) (*Appointment, error) {
-	if p.NewStartTime != nil && p.NewEndTime != nil {
-		q := db.New(r.pool)
-		row, err := q.RescheduleAppointment(ctx, db.RescheduleAppointmentParams{
-			ID:        p.ID,
-			StartTime: *p.NewStartTime,
-			EndTime:   *p.NewEndTime,
+	var out *Appointment
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		q := db.New(tx)
+		if p.NewStartTime != nil && p.NewEndTime != nil {
+			row, err := q.RescheduleAppointment(ctx, db.RescheduleAppointmentParams{
+				ID:        p.ID,
+				StartTime: *p.NewStartTime,
+				EndTime:   *p.NewEndTime,
+			})
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23P01" {
+					return apperr.Conflict("the new time slot is no longer available")
+				}
+				if errors.Is(err, pgx.ErrNoRows) {
+					return apperr.Conflict("appointment state changed concurrently; retry")
+				}
+				return apperr.Internal(err)
+			}
+			out = fromRow(row)
+			return nil
+		}
+
+		var reasonPtr *string
+		if p.CancellationReason != nil {
+			reason := *p.CancellationReason
+			reasonPtr = &reason
+		}
+		row, err := q.TransitionAppointmentStatus(ctx, db.TransitionAppointmentStatusParams{
+			ID:                 p.ID,
+			Status:             string(p.NewStatus),
+			CancellationReason: reasonPtr,
+			ExpectedStatus:     string(p.ExpectedStatus),
 		})
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23P01" {
-				return nil, apperr.Conflict("the new time slot is no longer available")
+			if errors.Is(err, pgx.ErrNoRows) {
+				return apperr.Conflict("appointment state changed concurrently; retry")
 			}
-			return nil, apperr.Internal(err)
+			return apperr.Internal(err)
 		}
-		return fromRow(row), nil
-	}
-
-	q := db.New(r.pool)
-	var reasonPtr *string
-	if p.CancellationReason != nil {
-		r := *p.CancellationReason
-		reasonPtr = &r
-	}
-	row, err := q.TransitionAppointmentStatus(ctx, db.TransitionAppointmentStatusParams{
-		ID:                 p.ID,
-		Status:             string(p.NewStatus),
-		CancellationReason: reasonPtr,
-		ExpectedStatus:     string(p.ExpectedStatus),
+		out = fromRow(row)
+		return nil
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperr.Conflict("appointment state changed concurrently; retry")
-		}
-		return nil, apperr.Internal(err)
+		return nil, err
 	}
-	return fromRow(row), nil
+	return out, nil
 }

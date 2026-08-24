@@ -26,6 +26,7 @@ func Middleware(svc *Service) gin.HandlerFunc {
 		}
 		c.Set(CtxUserID, claims.UserID.String())
 		c.Set(CtxRoles, claims.Roles)
+		c.Set("auth_claims", claims)
 		c.Next()
 	}
 }

@@ -3,11 +3,13 @@ sql:
 - engine: postgresql
   schema:
   - db/migrations/000002_init.up.sql
+  - db/migrations/sqlc_schema/tenants.sql
   queries:
   - db/queries/auth
   - db/queries/patient
   - db/queries/doctor
   - db/queries/appointment
+  - db/queries/tenant
   gen:
     go:
       package: sqlc

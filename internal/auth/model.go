@@ -27,9 +27,11 @@ type User struct {
 }
 
 type Claims struct {
-	UserID uuid.UUID `json:"uid"`
-	Roles  []string  `json:"roles"`
-	Type   string    `json:"typ"`
+	UserID   uuid.UUID `json:"uid"`
+	Roles    []string  `json:"roles"`
+	Type     string    `json:"typ"`
+	TenantID uuid.UUID `json:"tid,omitempty"` // active clinic (multi-tenant)
+	TenantSlug string  `json:"tslug,omitempty"`
 }
 
 type TokenPair struct {

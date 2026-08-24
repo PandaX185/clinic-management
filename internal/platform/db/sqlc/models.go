@@ -119,6 +119,15 @@ type Role struct {
 	CreatedAt time.Time
 }
 
+type Tenant struct {
+	ID        uuid.UUID
+	Name      string
+	Slug      string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string
@@ -133,4 +142,13 @@ type User struct {
 type UserRole struct {
 	UserID uuid.UUID
 	RoleID uuid.UUID
+}
+
+type UserTenant struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	TenantID  uuid.UUID
+	RoleName  string
+	IsActive  bool
+	CreatedAt time.Time
 }

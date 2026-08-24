@@ -18,18 +18,18 @@ import (
 )
 
 type RouterDeps struct {
-	Cfg      config.Config
-	RDB      *redis.Client
-	Logger   Logger
-	AuthH    *auth.Handler
-	AuthSvc  *auth.Service
-	PatientH *patient.Handler
-	DoctorH  *doctor.Handler
-	AppointH *appt.Handler
-	TenantH  *tenant.Handler
-	TenantSvc *tenant.Service
+	Cfg             config.Config
+	RDB             *redis.Client
+	Logger          Logger
+	AuthH           *auth.Handler
+	AuthSvc         *auth.Service
+	PatientH        *patient.Handler
+	DoctorH         *doctor.Handler
+	AppointH        *appt.Handler
+	TenantH         *tenant.Handler
+	TenantSvc       *tenant.Service
 	ProfileResolver ProfileResolver
-	Metrics  *metrics.Metrics
+	Metrics         *metrics.Metrics
 }
 
 func NewRouter(deps RouterDeps) *gin.Engine {

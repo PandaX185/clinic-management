@@ -27,11 +27,18 @@ type Service struct {
 	repo      Repository
 	publisher EventPublisher
 	audit     AuditWriter
+	identity  IdentityResolver
 	ttlSecs   int
 }
 
 func NewService(repo Repository, publisher EventPublisher, audit AuditWriter, idempotencyTTL time.Duration) *Service {
-	return &Service{repo: repo, publisher: publisher, audit: audit, ttlSecs: int(idempotencyTTL.Seconds())}
+	return NewServiceWithIdentity(repo, publisher, audit, nil, idempotencyTTL)
+}
+
+// NewServiceWithIdentity allows injecting an IdentityResolver for role-scoped
+// access enforcement. A nil resolver disables scoping (tests only).
+func NewServiceWithIdentity(repo Repository, publisher EventPublisher, audit AuditWriter, identity IdentityResolver, idempotencyTTL time.Duration) *Service {
+	return &Service{repo: repo, publisher: publisher, audit: audit, identity: identity, ttlSecs: int(idempotencyTTL.Seconds())}
 }
 
 // Book creates an appointment safely under concurrency. The repository runs
@@ -84,13 +91,69 @@ func (s *Service) Book(ctx context.Context, in BookInput, actorID *uuid.UUID) (B
 	return result, nil
 }
 
+// BookScoped enforces role rules on booking: patient-role actors may only
+// book for themselves; staff/admin may book for anyone (SEC-02).
+func (s *Service) BookScoped(ctx context.Context, in BookInput, ac AccessContext) (BookingResult, error) {
+	if s.identity != nil && !ac.IsPrivileged() {
+		pid, err := s.identity.PatientIDForUser(ctx, ac.UserID)
+		if err != nil {
+			return BookingResult{}, err
+		}
+		if pid == uuid.Nil {
+			return BookingResult{}, apperr.Forbidden("no patient profile is linked to your account")
+		}
+		in.PatientID = pid.String()
+	}
+	return s.Book(ctx, in, ac.ActorID)
+}
+
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (*Appointment, error) {
 	return s.repo.GetByID(ctx, id)
+}
+
+// GetScoped enforces role-based access on a single appointment read (SEC-02).
+func (s *Service) GetScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
+	appt, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	sc, err := s.resolveScope(ctx, ac)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.canAccessAppointment(sc, appt); err != nil {
+		return nil, err
+	}
+	return appt, nil
 }
 
 func (s *Service) List(ctx context.Context, q ListQuery) ([]Appointment, int64, error) {
 	if q.Limit == 0 {
 		q.Limit = 20
+	}
+	return s.repo.List(ctx, q)
+}
+
+// ListScoped forces the caller's own patient/doctor filter onto a listing.
+// Privileged actors may pass arbitrary filters; patients and doctors cannot
+// enumerate appointments that are not theirs (SEC-02).
+func (s *Service) ListScoped(ctx context.Context, q ListQuery, ac AccessContext) ([]Appointment, int64, error) {
+	if q.Limit == 0 {
+		q.Limit = 20
+	}
+	sc, err := s.resolveScope(ctx, ac)
+	if err != nil {
+		return nil, 0, err
+	}
+	if sc.deny {
+		return []Appointment{}, 0, nil
+	}
+	if sc.patientID != nil {
+		q.PatientID = sc.patientID.String()
+		q.DoctorID = ""
+	} else if sc.doctorID != nil {
+		q.DoctorID = sc.doctorID.String()
+		q.PatientID = ""
 	}
 	return s.repo.List(ctx, q)
 }
@@ -101,6 +164,19 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID, reason string, actor
 	if err != nil {
 		return nil, err
 	}
+	return s.cancelAuthorized(ctx, id, reason, actorID, current)
+}
+
+// CancelScoped additionally enforces role-based ownership before cancelling.
+func (s *Service) CancelScoped(ctx context.Context, id uuid.UUID, reason string, ac AccessContext) (*Appointment, error) {
+	appt, err := s.authorizeMutation(ctx, id, ac)
+	if err != nil {
+		return nil, err
+	}
+	return s.cancelAuthorized(ctx, id, reason, ac.ActorID, appt)
+}
+
+func (s *Service) cancelAuthorized(ctx context.Context, id uuid.UUID, reason string, actorID *uuid.UUID, current *Appointment) (*Appointment, error) {
 	if !CanTransition(current.Status, StatusCancelled) {
 		return nil, apperr.Conflict("cannot cancel an appointment in status " + string(current.Status))
 	}
@@ -131,8 +207,33 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID, reason string, actor
 	return updated, nil
 }
 
+// authorizeMutation loads the appointment and verifies the actor may mutate
+// it (SEC-02). Doctors may manage their own appointments; patients their own.
+func (s *Service) authorizeMutation(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
+	appt, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	sc, err := s.resolveScope(ctx, ac)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.canAccessAppointment(sc, appt); err != nil {
+		return nil, err
+	}
+	return appt, nil
+}
+
 // Reschedule moves an active appointment to a new time window. The DB
 // exclusion constraint rejects collisions introduced by the new range.
+// RescheduleScoped enforces ownership before rescheduling.
+func (s *Service) RescheduleScoped(ctx context.Context, id uuid.UUID, in RescheduleInput, ac AccessContext) (*Appointment, error) {
+	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
+		return nil, err
+	}
+	return s.Reschedule(ctx, id, in, ac.ActorID)
+}
+
 func (s *Service) Reschedule(ctx context.Context, id uuid.UUID, in RescheduleInput, actorID *uuid.UUID) (*Appointment, error) {
 	current, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -184,6 +285,28 @@ func (s *Service) Complete(ctx context.Context, id uuid.UUID, actorID *uuid.UUID
 
 func (s *Service) MarkNoShow(ctx context.Context, id uuid.UUID, actorID *uuid.UUID) (*Appointment, error) {
 	return s.simpleTransition(ctx, id, StatusNoShow, "appointment.no_show", actorID)
+}
+
+// Simple transitions with ownership enforcement (SEC-02).
+func (s *Service) ConfirmScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
+	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
+		return nil, err
+	}
+	return s.simpleTransition(ctx, id, StatusConfirmed, "appointment.confirmed", ac.ActorID)
+}
+
+func (s *Service) CompleteScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
+	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
+		return nil, err
+	}
+	return s.simpleTransition(ctx, id, StatusCompleted, "appointment.completed", ac.ActorID)
+}
+
+func (s *Service) MarkNoShowScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
+	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
+		return nil, err
+	}
+	return s.simpleTransition(ctx, id, StatusNoShow, "appointment.no_show", ac.ActorID)
 }
 
 type simpleSpec struct {

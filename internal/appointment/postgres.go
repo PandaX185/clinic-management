@@ -134,6 +134,14 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 
 	q := db.New(tx)
 
+	// Auto-provision the patient's profile in THIS clinic on first action
+	// (patients are global users; clinical records stay per-tenant).
+	if p.PatientUser != nil {
+		if _, err := q.UpsertPatientProfile(ctx, *p.PatientUser); err != nil {
+			return BookingResult{}, wrapBooking(apperr.Internal(err))
+		}
+	}
+
 	if p.IdempotencyKey != "" {
 		stored, err := q.GetIdempotentResponse(ctx, db.GetIdempotentResponseParams{
 			Key:      p.IdempotencyKey,

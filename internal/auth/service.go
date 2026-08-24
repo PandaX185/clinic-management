@@ -48,7 +48,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*User, error)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
-	return s.repo.CreateUser(ctx, strings.ToLower(in.Email), string(hash), in.FullName, in.Phone, in.InitialRole)
+	// Server-side enforcement: public registration may only ever mint
+	// patient accounts (SEC-01). Ignore whatever role the client sent.
+	return s.repo.CreateUser(ctx, strings.ToLower(in.Email), string(hash), in.FullName, in.Phone, RolePatient)
 }
 
 func (s *Service) Login(ctx context.Context, in LoginInput) (*TokenPair, error) {

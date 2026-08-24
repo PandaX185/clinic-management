@@ -109,6 +109,17 @@ func (q *Queries) GetPatientByID(ctx context.Context, id uuid.UUID) (Patient, er
 	return i, err
 }
 
+const getPatientIDByUserID = `-- name: GetPatientIDByUserID :one
+SELECT id FROM patients WHERE user_id = $1
+`
+
+func (q *Queries) GetPatientIDByUserID(ctx context.Context, userID *uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getPatientIDByUserID, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const searchPatients = `-- name: SearchPatients :many
 SELECT id, user_id, full_name, date_of_birth, gender, phone, address, emergency_contact_name, emergency_contact_phone, medical_notes, created_at, updated_at FROM patients
 WHERE $3::text = '' OR full_name ILIKE '%' || $3 || '%'

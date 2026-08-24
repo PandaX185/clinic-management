@@ -44,7 +44,7 @@ type RegisterInput struct {
 	Password    string  `json:"password" binding:"required,min=8,max=72"`
 	FullName    string  `json:"full_name" binding:"required,max=255"`
 	Phone       *string `json:"phone" binding:"omitempty,max=50"`
-	InitialRole Role    `json:"role" binding:"omitempty,oneof=patient doctor staff"`
+	InitialRole Role    `json:"role" binding:"omitempty,oneof=patient"`
 }
 
 type LoginInput struct {

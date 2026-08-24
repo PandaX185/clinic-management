@@ -169,6 +169,17 @@ func (q *Queries) GetDoctorByID(ctx context.Context, id uuid.UUID) (GetDoctorByI
 	return i, err
 }
 
+const getDoctorIDByUserID = `-- name: GetDoctorIDByUserID :one
+SELECT id FROM doctors WHERE user_id = $1
+`
+
+func (q *Queries) GetDoctorIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getDoctorIDByUserID, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const listDoctorSchedules = `-- name: ListDoctorSchedules :many
 SELECT id, doctor_id, day_of_week, start_time, end_time, slot_minutes, is_active, created_at, updated_at FROM doctor_schedules
 WHERE doctor_id = $1 AND is_active = true

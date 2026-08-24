@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -67,4 +68,37 @@ func newUUID(t *testing.T) (id uuid.UUID) {
 	id, err := uuid.NewRandom()
 	require.NoError(t, err)
 	return id
+}
+
+type fakeAuthRepo struct {
+	Repository
+	capturedRole Role
+}
+
+func (f *fakeAuthRepo) CreateUser(ctx context.Context, email, hash, name string, phone *string, role Role) (*User, error) {
+	f.capturedRole = role
+	id, _ := uuid.NewRandom()
+	return &User{ID: id, Email: email, Roles: []Role{role}}, nil
+}
+
+// SEC-01: public registration must never mint elevated roles.
+func TestRegister_ForcesPatientRole(t *testing.T) {
+	repo := &fakeAuthRepo{}
+	svc := NewService(repo, NewTokenManager("test-secret-key", "test-refresh-secret", 15*time.Minute, 24*time.Hour))
+
+	u, err := svc.Register(context.Background(), RegisterInput{
+		Email:       "attacker@example.com",
+		Password:    "longenough123",
+		FullName:    "Attacker",
+		InitialRole: RoleStaff,
+	})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+	if repo.capturedRole != RolePatient {
+		t.Fatalf("expected patient role persisted, got %v", repo.capturedRole)
+	}
+	if len(u.Roles) != 1 || u.Roles[0] != RolePatient {
+		t.Fatalf("expected [patient], got %v", u.Roles)
+	}
 }

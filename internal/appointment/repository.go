@@ -32,13 +32,16 @@ type TransitionParams struct {
 type BookTxParams struct {
 	IdempotencyKey string
 	PatientID      uuid.UUID
-	DoctorID       uuid.UUID
-	StartTime      time.Time
-	EndTime        time.Time
-	Notes          *string
-	CreatedBy      *uuid.UUID
-	RequestHash    string
-	TTLSeconds     int
+	// PatientUser is the global user ID behind the patient; when set, the
+	// booking auto-provisions their profile row in this clinic's schema.
+	PatientUser *uuid.UUID
+	DoctorID    uuid.UUID
+	StartTime   time.Time
+	EndTime     time.Time
+	Notes       *string
+	CreatedBy   *uuid.UUID
+	RequestHash string
+	TTLSeconds  int
 }
 
 type BookingResult struct {

@@ -38,3 +38,6 @@ RETURNING *;
 SELECT * FROM doctor_schedule_exceptions
 WHERE doctor_id = $1 AND exception_date BETWEEN $2 AND $3
 ORDER BY exception_date;
+
+-- name: GetDoctorIDByUserID :one
+SELECT id FROM doctors WHERE user_id = $1;

@@ -57,9 +57,7 @@ func (h *Handler) Book(c *gin.Context) {
 	}
 	in.IdempotencyKey = c.GetHeader(idempotencyHeader)
 
-	actor := actorID(c)
-
-	result, err := h.svc.Book(c.Request.Context(), in, actor)
+	result, err := h.svc.BookScoped(c.Request.Context(), in, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -80,7 +78,7 @@ func (h *Handler) Get(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	a, err := h.svc.Get(c.Request.Context(), id)
+	a, err := h.svc.GetScoped(c.Request.Context(), id, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -94,7 +92,7 @@ func (h *Handler) List(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid query parameters"))
 		return
 	}
-	items, total, err := h.svc.List(c.Request.Context(), q)
+	items, total, err := h.svc.ListScoped(c.Request.Context(), q, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -117,7 +115,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 		c.Error(apperr.Invalid("reason is required"))
 		return
 	}
-	a, err := h.svc.Cancel(c.Request.Context(), id, in.Reason, actorID(c))
+	a, err := h.svc.CancelScoped(c.Request.Context(), id, in.Reason, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -136,7 +134,7 @@ func (h *Handler) Reschedule(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	a, err := h.svc.Reschedule(c.Request.Context(), id, in, actorID(c))
+	a, err := h.svc.RescheduleScoped(c.Request.Context(), id, in, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -150,7 +148,7 @@ func (h *Handler) Confirm(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	a, err := h.svc.Confirm(c.Request.Context(), id, actorID(c))
+	a, err := h.svc.ConfirmScoped(c.Request.Context(), id, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -164,7 +162,7 @@ func (h *Handler) Complete(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	a, err := h.svc.Complete(c.Request.Context(), id, actorID(c))
+	a, err := h.svc.CompleteScoped(c.Request.Context(), id, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -178,7 +176,7 @@ func (h *Handler) MarkNoShow(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	a, err := h.svc.MarkNoShow(c.Request.Context(), id, actorID(c))
+	a, err := h.svc.MarkNoShowScoped(c.Request.Context(), id, accessContextOf(c))
 	if err != nil {
 		c.Error(err)
 		return
@@ -208,6 +206,21 @@ func actorID(c *gin.Context) *uuid.UUID {
 		return nil
 	}
 	return &id
+}
+
+// accessContextOf builds the service-level AccessContext from middleware-set
+// identity claims.
+func accessContextOf(c *gin.Context) AccessContext {
+	ac := AccessContext{ActorID: actorID(c)}
+	if ac.ActorID != nil {
+		ac.UserID = *ac.ActorID
+	}
+	if raw, ok := c.Get("auth_roles"); ok {
+		if roles, ok := raw.([]string); ok {
+			ac.Roles = roles
+		}
+	}
+	return ac
 }
 
 func toResponse(a *Appointment) *appointmentResponse {

@@ -34,3 +34,6 @@ WHERE sqlc.arg('search')::text = '' OR full_name ILIKE '%' || sqlc.arg('search')
 
 -- name: DeletePatient :execrows
 DELETE FROM patients WHERE id = $1;
+
+-- name: GetPatientIDByUserID :one
+SELECT id FROM patients WHERE user_id = $1;

@@ -28,9 +28,11 @@ type Querier interface {
 	DeletePatient(ctx context.Context, id uuid.UUID) (int64, error)
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	GetDoctorByID(ctx context.Context, id uuid.UUID) (GetDoctorByIDRow, error)
+	GetDoctorIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error)
 	GetNotificationByMsgID(ctx context.Context, natsMsgID *string) (Notification, error)
 	GetPatientByID(ctx context.Context, id uuid.UUID) (Patient, error)
+	GetPatientIDByUserID(ctx context.Context, userID *uuid.UUID) (uuid.UUID, error)
 	// GetProfileForTenant / UpsertPatientProfile live in profile.sql and run
 	// with search_path pinned to the active tenant schema.
 	GetProfileForTenant(ctx context.Context, userID uuid.UUID) (GetProfileForTenantRow, error)

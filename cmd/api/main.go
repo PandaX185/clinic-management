@@ -100,7 +100,7 @@ func run() error {
 		})
 	}
 
-	apptSvc := appt.NewService(apptRepo, eventForwarder, newAuditWriter(pool), cfg.IdempotencyTTL)
+	apptSvc := appt.NewServiceWithIdentity(apptRepo, eventForwarder, newAuditWriter(pool), appt.NewPostgresIdentityResolver(pool), cfg.IdempotencyTTL)
 	apptHandler := appt.NewHandler(apptSvc)
 
 	// Multi-tenant registry: tenants + per-tenant profile resolution.

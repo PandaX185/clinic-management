@@ -51,6 +51,8 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	if deps.Metrics != nil {
 		r.Use(MetricsMiddleware(deps.Metrics))
 	}
+	// ErrorHandler must run BEFORE route middleware so it can convert
+	// aborts (c.Error + c.Abort) from e.g. TenantMiddleware into responses.
 	r.Use(ErrorHandler(deps.Logger))
 	r.Use(RateLimit(deps.RDB, deps.Cfg.RateLimitPerMinute))
 	r.Use(SecurityHeaders())

@@ -110,6 +110,10 @@ func TenantMiddleware(resolver TenantResolver, profiles ProfileResolver) gin.Han
 		var userID uuid.UUID
 		if claims != nil {
 			userID = claims.UserID
+		} else if rawUID, ok := c.Get(auth.CtxUserID); ok {
+			if s, ok := rawUID.(string); ok {
+				userID, _ = uuid.Parse(s)
+			}
 		}
 
 		// Resolve role within this tenant's schema; no profile = patient level.

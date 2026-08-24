@@ -200,15 +200,7 @@ func (m *TokenManager) Parse(token, expectedType string) (*Claims, error) {
 			}
 		}
 	}
-	var tenantID uuid.UUID
-	if tidStr, ok := mapClaims["tid"].(string); ok {
-		tenantID, err = uuid.Parse(tidStr)
-		if err != nil {
-			return nil, errors.New("invalid tenant claim")
-		}
-	}
-	slug, _ := mapClaims["tslug"].(string)
-	return &Claims{UserID: uid, Roles: roles, Type: typ, TenantID: tenantID, TenantSlug: slug}, nil
+	return &Claims{UserID: uid, Roles: roles, Type: typ}, nil
 }
 
 func (u *User) isActive() bool { return u.IsActive }

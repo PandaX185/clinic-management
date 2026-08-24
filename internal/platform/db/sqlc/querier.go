@@ -11,7 +11,8 @@ import (
 )
 
 type Querier interface {
-	AddTenantMember(ctx context.Context, arg AddTenantMemberParams) (UserTenant, error)
+	// Staff/doctor binding so the clinic appears in the user's tenant list.
+	AddUserTenant(ctx context.Context, arg AddUserTenantParams) (UserTenant, error)
 	AssignUserRole(ctx context.Context, arg AssignUserRoleParams) error
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
 	CountPatients(ctx context.Context, search string) (int64, error)
@@ -28,9 +29,11 @@ type Querier interface {
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	GetDoctorByID(ctx context.Context, id uuid.UUID) (GetDoctorByIDRow, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error)
-	GetMembership(ctx context.Context, arg GetMembershipParams) (GetMembershipRow, error)
 	GetNotificationByMsgID(ctx context.Context, natsMsgID *string) (Notification, error)
 	GetPatientByID(ctx context.Context, id uuid.UUID) (Patient, error)
+	// GetProfileForTenant / UpsertPatientProfile live in profile.sql and run
+	// with search_path pinned to the active tenant schema.
+	GetProfileForTenant(ctx context.Context, userID uuid.UUID) (GetProfileForTenantRow, error)
 	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -42,9 +45,11 @@ type Querier interface {
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)
 	ListDoctorSchedules(ctx context.Context, doctorID uuid.UUID) ([]DoctorSchedule, error)
 	ListDoctors(ctx context.Context, arg ListDoctorsParams) ([]ListDoctorsRow, error)
-	ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsForUserRow, error)
 	ListScheduleExceptions(ctx context.Context, arg ListScheduleExceptionsParams) ([]DoctorScheduleException, error)
 	ListTenants(ctx context.Context) ([]Tenant, error)
+	// Clinics where the user holds a staff/doctor binding. Patients browse all
+	// active tenants and need no binding to act inside one.
+	ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]string, error)
 	MarkNotificationDead(ctx context.Context, arg MarkNotificationDeadParams) error
 	MarkNotificationFailed(ctx context.Context, arg MarkNotificationFailedParams) error
@@ -54,6 +59,7 @@ type Querier interface {
 	SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
 	UpdatePatient(ctx context.Context, arg UpdatePatientParams) (Patient, error)
+	UpsertPatientProfile(ctx context.Context, userID uuid.UUID) (UpsertPatientProfileRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

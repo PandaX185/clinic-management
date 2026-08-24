@@ -113,6 +113,14 @@ type Patient struct {
 	UpdatedAt             time.Time
 }
 
+type Profile struct {
+	UserID    uuid.UUID
+	Role      string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Role struct {
 	ID        uuid.UUID
 	Name      string
@@ -148,7 +156,6 @@ type UserTenant struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	TenantID  uuid.UUID
-	RoleName  string
 	IsActive  bool
 	CreatedAt time.Time
 }

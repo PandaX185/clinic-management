@@ -6,6 +6,7 @@ sql:
   - db/migrations/global/000001_functions.up.sql
   - db/migrations/000002_init.up.sql
   - db/migrations/global/000001_tenants.up.sql
+  - db/queries/tenant/schema_profiles.sql
   queries:
   - db/queries/auth
   - db/queries/patient

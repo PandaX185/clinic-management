@@ -24,6 +24,7 @@ import (
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
 	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
 	redisclient "github.com/PandaX185/clinic-management/internal/platform/redis"
+	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 )
 
 func main() {
@@ -102,15 +103,24 @@ func run() error {
 	apptSvc := appt.NewService(apptRepo, eventForwarder, newAuditWriter(pool), cfg.IdempotencyTTL)
 	apptHandler := appt.NewHandler(apptSvc)
 
+	// Multi-tenant registry: tenants + per-tenant profile resolution.
+	tenantStore := tenant.NewPostgresStore(pool)
+	tenantSvc := tenant.NewService(tenantStore, tenant.NewScopedProfileStore(pool), tenantStore)
+	tenantHandler := tenant.NewHandler(tenantSvc)
+
 	router := server.NewRouter(server.RouterDeps{
-		Cfg:      cfg,
-		RDB:      rdb,
-		Logger:   lg,
-		AuthH:    authHandler,
-		AuthSvc:  authSvc,
-		PatientH: patientHandler,
-		DoctorH:  doctorHandler,
-		AppointH: apptHandler,
+		Cfg:             cfg,
+		RDB:             rdb,
+		Logger:          lg,
+		AuthH:           authHandler,
+		AuthSvc:         authSvc,
+		PatientH:        patientHandler,
+		DoctorH:         doctorHandler,
+		AppointH:        apptHandler,
+		TenantH:         tenantHandler,
+		TenantSvc:       tenantSvc,
+		ProfileResolver: tenant.NewScopedProfileStore(pool),
+		Metrics:         m,
 	})
 
 	health := server.NewHealth(cfg, pool, rdb, natsClient)

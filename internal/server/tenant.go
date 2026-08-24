@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -9,9 +11,28 @@ import (
 
 	auth "github.com/PandaX185/clinic-management/internal/auth"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/database"
 )
 
-// authClaimsFrom recovers the parsed token claims stored by auth.Middleware.
+// HeaderTenantID selects the clinic a request acts upon. Login and tenant
+// browsing are global; everything else requires this header.
+const HeaderTenantID = "X-Tenant-ID"
+
+// TenantResolver resolves a tenant ID to its schema slug. Implemented by
+// tenant.Service via the store.
+type TenantResolver interface {
+	// SlugForTenant validates the tenant exists and is active, returning
+	// its slug (the only source of SQL schema names).
+	SlugForTenant(ctx context.Context, tenantID uuid.UUID) (string, error)
+}
+
+// ProfileResolver returns the caller's role inside the tenant named by the
+// context's tenant slug; empty string means no profile yet.
+type ProfileResolver interface {
+	RoleForUser(ctx context.Context, userID uuid.UUID) (string, error)
+}
+
+// authClaimsFrom recovers parsed token claims stored by auth.Middleware.
 func authClaimsFrom(c *gin.Context) *auth.Claims {
 	v, ok := c.Get("auth_claims")
 	if !ok {
@@ -21,87 +42,96 @@ func authClaimsFrom(c *gin.Context) *auth.Claims {
 	return claims
 }
 
-// MembershipChecker validates a user's active membership in the tenant
-// claimed by their token. Implemented by tenant.Service.
-type MembershipChecker interface {
-	CheckMembership(userID, tenantID string) (role, slug string, err error)
-}
-
-// CachedMembership wraps a checker with a short-lived positive cache so
-// verified memberships don't hit Postgres on every request. Negative results
-// are never cached: a newly granted user must work immediately.
-type CachedMembership struct {
-	checker MembershipChecker
-	ttl     time.Duration
-
-	mu    sync.RWMutex
-	cache map[string]cachedEntry
-}
-
-type cachedEntry struct {
-	role    string
-	slug    string
-	expires time.Time
-}
-
-func NewCachedMembership(checker MembershipChecker, ttl time.Duration) *CachedMembership {
-	return &CachedMembership{checker: checker, ttl: ttl, cache: make(map[string]cachedEntry)}
-}
-
-func membershipCacheKey(userID, tenantID string) string { return userID + ":" + tenantID }
-
-func (c *CachedMembership) CheckMembership(userID, tenantID string) (string, string, error) {
-	key := membershipCacheKey(userID, tenantID)
-	c.mu.RLock()
-	if e, ok := c.cache[key]; ok && time.Now().Before(e.expires) {
-		c.mu.RUnlock()
-		return e.role, e.slug, nil
-	}
-	c.mu.RUnlock()
-
-	role, slug, err := c.checker.CheckMembership(userID, tenantID)
-	if err != nil {
-		return "", "", err
-	}
-	c.mu.Lock()
-	c.cache[key] = cachedEntry{role: role, slug: slug, expires: time.Now().Add(c.ttl)}
-	c.mu.Unlock()
-	return role, slug, nil
-}
-
 // CtxTenantSlug is the gin context key carrying the resolved schema slug.
 const CtxTenantSlug = "tenant_slug"
 
-// TenantMiddleware enforces that the caller's access token names a clinic
-// they hold an active membership in (SEC: cross-tenant isolation). The
-// verified slug lands on the request context for DB scoping.
-func TenantMiddleware(checker MembershipChecker) gin.HandlerFunc {
+var roleCacheTTL = 30 * time.Second
+
+// roleCache caches (user,tenant)->role so verified roles don't hit Postgres
+// per request. Only positive results are cached; revocation is effective
+// within TTL.
+type roleCache struct {
+	mu    sync.RWMutex
+	items map[string]cachedRole
+}
+
+type cachedRole struct {
+	role    string
+	expires time.Time
+}
+
+func newRoleCache() *roleCache { return &roleCache{items: map[string]cachedRole{}} }
+
+func (c *roleCache) get(userID string, tid uuid.UUID) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	e, ok := c.items[userID+":"+tid.String()]
+	if !ok || time.Now().After(e.expires) {
+		return "", false
+	}
+	return e.role, true
+}
+
+func (c *roleCache) set(userID string, tid uuid.UUID, role string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.items[userID+":"+tid.String()] = cachedRole{role: role, expires: time.Now().Add(roleCacheTTL)}
+}
+
+// TenantMiddleware implements the multi-tenant access model:
+//
+//   - Identity comes from the JWT (global login, no tenant in token).
+//   - The active clinic comes from X-Tenant-ID on each request.
+//   - Role is looked up in that tenant's profiles table; DB always wins.
+//
+// A spoofed X-Tenant-ID grants nothing: without a doctor/staff/admin
+// profile there, the caller has patient-level rights only — which any user
+// legitimately has in every clinic.
+func TenantMiddleware(resolver TenantResolver, profiles ProfileResolver) gin.HandlerFunc {
+	cache := newRoleCache()
+
 	return func(c *gin.Context) {
-		rawUID, ok := c.Get(auth.CtxUserID)
-		if !ok {
-			c.AbortWithStatusJSON(apperr.HTTPStatus(apperr.KindUnauthorized), gin.H{"error": "unauthenticated"})
-			return
-		}
-		userID, _ := rawUID.(string)
-
-		claims := authClaimsFrom(c)
-		if claims == nil || claims.TenantID == uuid.Nil {
-			c.AbortWithStatusJSON(apperr.HTTPStatus(apperr.KindForbidden), gin.H{
-				"error": "no clinic selected; use POST /api/v1/auth/select-tenant",
-			})
+		rawID := strings.TrimSpace(c.GetHeader(HeaderTenantID))
+		tid, err := uuid.Parse(rawID)
+		if err != nil {
+			c.Error(apperr.Invalid("missing or invalid " + HeaderTenantID + " header"))
+			c.Abort()
 			return
 		}
 
-		role, slug, err := checker.CheckMembership(userID, claims.TenantID.String())
+		slug, err := resolver.SlugForTenant(c.Request.Context(), tid)
 		if err != nil {
 			c.Error(err)
 			c.Abort()
 			return
 		}
-		// The token's role claim is advisory only; the DB membership row is
-		// authoritative and always wins.
+
+		claims := authClaimsFrom(c)
+		var userID uuid.UUID
+		if claims != nil {
+			userID = claims.UserID
+		}
+
+		// Resolve role within this tenant's schema; no profile = patient level.
+		role, cached := cache.get(userID.String(), tid)
+		if !cached && userID != (uuid.UUID{}) {
+			// Temporarily pin the context so RoleForUser scopes correctly.
+			ctx := database.WithTenantSlug(c.Request.Context(), slug)
+			role, err = profiles.RoleForUser(ctx, userID)
+			if err != nil {
+				c.Error(err)
+				c.Abort()
+				return
+			}
+			cache.set(userID.String(), tid, role)
+		}
+		if role == "" {
+			role = "patient" // implicit baseline everywhere
+		}
+
 		c.Set(auth.CtxRoles, []string{role})
 		c.Set(CtxTenantSlug, slug)
+		c.Set("auth_tenant_id", tid)
 		c.Next()
 	}
 }

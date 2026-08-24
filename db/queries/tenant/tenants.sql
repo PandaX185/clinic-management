@@ -10,28 +10,33 @@ SELECT * FROM tenants WHERE slug = $1;
 SELECT * FROM tenants WHERE id = $1;
 
 -- name: ListTenants :many
-SELECT * FROM tenants ORDER BY created_at DESC;
+SELECT * FROM tenants WHERE is_active = true ORDER BY created_at DESC;
 
 -- name: SetTenantActive :exec
 UPDATE tenants SET is_active = $2 WHERE id = $1;
 
--- name: AddTenantMember :one
-INSERT INTO user_tenants (user_id, tenant_id, role_name)
-VALUES ($1, $2, $3)
-ON CONFLICT (user_id, tenant_id) DO UPDATE
-  SET role_name = EXCLUDED.role_name, is_active = true
+-- name: AddUserTenant :one
+-- Staff/doctor binding so the clinic appears in the user's tenant list.
+INSERT INTO user_tenants (user_id, tenant_id)
+VALUES ($1, $2)
+ON CONFLICT (user_id, tenant_id) DO NOTHING
 RETURNING *;
 
--- name: ListMembershipsForUser :many
-SELECT ut.user_id, ut.tenant_id, ut.role_name, ut.is_active,
-       t.slug AS tenant_slug, t.name AS tenant_name
-FROM user_tenants ut
-JOIN tenants t ON t.id = ut.tenant_id
+-- name: ListTenantsForUser :many
+-- Clinics where the user holds a staff/doctor binding. Patients browse all
+-- active tenants and need no binding to act inside one.
+SELECT t.* FROM tenants t
+JOIN user_tenants ut ON ut.tenant_id = t.id
 WHERE ut.user_id = $1 AND ut.is_active = true AND t.is_active = true;
 
--- name: GetMembership :one
-SELECT ut.user_id, ut.tenant_id, ut.role_name, ut.is_active,
-       t.slug AS tenant_slug, t.name AS tenant_name
-FROM user_tenants ut
-JOIN tenants t ON t.id = ut.tenant_id
-WHERE ut.user_id = $1 AND ut.tenant_id = $2 AND ut.is_active = true;
+-- GetProfileForTenant / UpsertPatientProfile live in profile.sql and run
+-- with search_path pinned to the active tenant schema.
+
+-- name: GetProfileForTenant :one
+SELECT user_id, role, is_active FROM profiles WHERE user_id = $1;
+
+-- name: UpsertPatientProfile :one
+INSERT INTO profiles (user_id, role)
+VALUES ($1, 'patient')
+ON CONFLICT (user_id) DO UPDATE SET is_active = true
+RETURNING user_id, role, is_active;

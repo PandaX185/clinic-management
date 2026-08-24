@@ -11,28 +11,26 @@ import (
 	"github.com/google/uuid"
 )
 
-const addTenantMember = `-- name: AddTenantMember :one
-INSERT INTO user_tenants (user_id, tenant_id, role_name)
-VALUES ($1, $2, $3)
-ON CONFLICT (user_id, tenant_id) DO UPDATE
-  SET role_name = EXCLUDED.role_name, is_active = true
-RETURNING id, user_id, tenant_id, role_name, is_active, created_at
+const addUserTenant = `-- name: AddUserTenant :one
+INSERT INTO user_tenants (user_id, tenant_id)
+VALUES ($1, $2)
+ON CONFLICT (user_id, tenant_id) DO NOTHING
+RETURNING id, user_id, tenant_id, is_active, created_at
 `
 
-type AddTenantMemberParams struct {
+type AddUserTenantParams struct {
 	UserID   uuid.UUID
 	TenantID uuid.UUID
-	RoleName string
 }
 
-func (q *Queries) AddTenantMember(ctx context.Context, arg AddTenantMemberParams) (UserTenant, error) {
-	row := q.db.QueryRow(ctx, addTenantMember, arg.UserID, arg.TenantID, arg.RoleName)
+// Staff/doctor binding so the clinic appears in the user's tenant list.
+func (q *Queries) AddUserTenant(ctx context.Context, arg AddUserTenantParams) (UserTenant, error) {
+	row := q.db.QueryRow(ctx, addUserTenant, arg.UserID, arg.TenantID)
 	var i UserTenant
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.TenantID,
-		&i.RoleName,
 		&i.IsActive,
 		&i.CreatedAt,
 	)
@@ -64,39 +62,23 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 	return i, err
 }
 
-const getMembership = `-- name: GetMembership :one
-SELECT ut.user_id, ut.tenant_id, ut.role_name, ut.is_active,
-       t.slug AS tenant_slug, t.name AS tenant_name
-FROM user_tenants ut
-JOIN tenants t ON t.id = ut.tenant_id
-WHERE ut.user_id = $1 AND ut.tenant_id = $2 AND ut.is_active = true
+const getProfileForTenant = `-- name: GetProfileForTenant :one
+
+SELECT user_id, role, is_active FROM profiles WHERE user_id = $1
 `
 
-type GetMembershipParams struct {
+type GetProfileForTenantRow struct {
 	UserID   uuid.UUID
-	TenantID uuid.UUID
+	Role     string
+	IsActive bool
 }
 
-type GetMembershipRow struct {
-	UserID     uuid.UUID
-	TenantID   uuid.UUID
-	RoleName   string
-	IsActive   bool
-	TenantSlug string
-	TenantName string
-}
-
-func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (GetMembershipRow, error) {
-	row := q.db.QueryRow(ctx, getMembership, arg.UserID, arg.TenantID)
-	var i GetMembershipRow
-	err := row.Scan(
-		&i.UserID,
-		&i.TenantID,
-		&i.RoleName,
-		&i.IsActive,
-		&i.TenantSlug,
-		&i.TenantName,
-	)
+// GetProfileForTenant / UpsertPatientProfile live in profile.sql and run
+// with search_path pinned to the active tenant schema.
+func (q *Queries) GetProfileForTenant(ctx context.Context, userID uuid.UUID) (GetProfileForTenantRow, error) {
+	row := q.db.QueryRow(ctx, getProfileForTenant, userID)
+	var i GetProfileForTenantRow
+	err := row.Scan(&i.UserID, &i.Role, &i.IsActive)
 	return i, err
 }
 
@@ -136,39 +118,26 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 	return i, err
 }
 
-const listMembershipsForUser = `-- name: ListMembershipsForUser :many
-SELECT ut.user_id, ut.tenant_id, ut.role_name, ut.is_active,
-       t.slug AS tenant_slug, t.name AS tenant_name
-FROM user_tenants ut
-JOIN tenants t ON t.id = ut.tenant_id
-WHERE ut.user_id = $1 AND ut.is_active = true AND t.is_active = true
+const listTenants = `-- name: ListTenants :many
+SELECT id, name, slug, is_active, created_at, updated_at FROM tenants WHERE is_active = true ORDER BY created_at DESC
 `
 
-type ListMembershipsForUserRow struct {
-	UserID     uuid.UUID
-	TenantID   uuid.UUID
-	RoleName   string
-	IsActive   bool
-	TenantSlug string
-	TenantName string
-}
-
-func (q *Queries) ListMembershipsForUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsForUserRow, error) {
-	rows, err := q.db.Query(ctx, listMembershipsForUser, userID)
+func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
+	rows, err := q.db.Query(ctx, listTenants)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListMembershipsForUserRow{}
+	items := []Tenant{}
 	for rows.Next() {
-		var i ListMembershipsForUserRow
+		var i Tenant
 		if err := rows.Scan(
-			&i.UserID,
-			&i.TenantID,
-			&i.RoleName,
+			&i.ID,
+			&i.Name,
+			&i.Slug,
 			&i.IsActive,
-			&i.TenantSlug,
-			&i.TenantName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -180,12 +149,16 @@ func (q *Queries) ListMembershipsForUser(ctx context.Context, userID uuid.UUID) 
 	return items, nil
 }
 
-const listTenants = `-- name: ListTenants :many
-SELECT id, name, slug, is_active, created_at, updated_at FROM tenants ORDER BY created_at DESC
+const listTenantsForUser = `-- name: ListTenantsForUser :many
+SELECT t.id, t.name, t.slug, t.is_active, t.created_at, t.updated_at FROM tenants t
+JOIN user_tenants ut ON ut.tenant_id = t.id
+WHERE ut.user_id = $1 AND ut.is_active = true AND t.is_active = true
 `
 
-func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
-	rows, err := q.db.Query(ctx, listTenants)
+// Clinics where the user holds a staff/doctor binding. Patients browse all
+// active tenants and need no binding to act inside one.
+func (q *Queries) ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
+	rows, err := q.db.Query(ctx, listTenantsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -223,4 +196,24 @@ type SetTenantActiveParams struct {
 func (q *Queries) SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error {
 	_, err := q.db.Exec(ctx, setTenantActive, arg.ID, arg.IsActive)
 	return err
+}
+
+const upsertPatientProfile = `-- name: UpsertPatientProfile :one
+INSERT INTO profiles (user_id, role)
+VALUES ($1, 'patient')
+ON CONFLICT (user_id) DO UPDATE SET is_active = true
+RETURNING user_id, role, is_active
+`
+
+type UpsertPatientProfileRow struct {
+	UserID   uuid.UUID
+	Role     string
+	IsActive bool
+}
+
+func (q *Queries) UpsertPatientProfile(ctx context.Context, userID uuid.UUID) (UpsertPatientProfileRow, error) {
+	row := q.db.QueryRow(ctx, upsertPatientProfile, userID)
+	var i UpsertPatientProfileRow
+	err := row.Scan(&i.UserID, &i.Role, &i.IsActive)
+	return i, err
 }

@@ -149,6 +149,15 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 		})
 		switch {
 		case err == nil:
+			// SEC-03: a key belongs to the user that created it and must
+			// match the request payload; anything else is a conflict, never
+			// a replay of someone else's booking.
+			if stored.UserID != nil && p.CreatedBy != nil && *stored.UserID != *p.CreatedBy {
+				return BookingResult{}, apperr.Conflict("idempotency key was already used by another request")
+			}
+			if stored.RequestHash != "" && stored.RequestHash != p.RequestHash {
+				return BookingResult{}, apperr.Conflict("idempotency key was already used with a different request body")
+			}
 			return BookingResult{Replayed: true, StoredStatus: int(stored.ResponseStatus), StoredBody: rawJSON(stored.ResponseBody)}, nil
 		case !errors.Is(err, pgx.ErrNoRows):
 			return BookingResult{}, wrapBooking(apperr.Internal(err))
@@ -179,7 +188,10 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 	if p.IdempotencyKey != "" {
 		body, _ := json.Marshal(appt)
 		raw := json.RawMessage(body)
-		if err := q.InsertIdempotentResponse(ctx, db.InsertIdempotentResponseParams{
+		// DO-UPDATE-WHERE-false RETURNING: on a conflicting commit the
+		// statement returns no rows (pgx.ErrNoRows) — another transaction
+		// owns this key already, so abort instead of duplicating (BR-07).
+		if _, err := q.InsertIdempotentResponse(ctx, db.InsertIdempotentResponseParams{
 			Key:            p.IdempotencyKey,
 			Endpoint:       idempotencyEndpoint,
 			UserID:         p.CreatedBy,
@@ -188,6 +200,9 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 			ResponseBody:   &raw,
 			TtlSeconds:     int32(p.TTLSeconds),
 		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return BookingResult{}, apperr.Conflict("request with this idempotency key is already being processed")
+			}
 			return BookingResult{}, apperr.Internal(err)
 		}
 	}

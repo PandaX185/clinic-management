@@ -64,8 +64,8 @@ func (h *Handler) Book(c *gin.Context) {
 	}
 
 	if result.Replayed {
-		c.Data(result.StoredStatus, "application/json", result.StoredBody)
 		c.Writer.Header().Set("Idempotent-Replay", "true")
+		c.Data(result.StoredStatus, "application/json", result.StoredBody)
 		return
 	}
 	body, _ := json.Marshal(toResponse(result.Appointment))

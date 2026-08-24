@@ -24,7 +24,7 @@ type Querier interface {
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeactivateDoctorSchedule(ctx context.Context, id uuid.UUID) error
-	DeleteExpiredIdempotencyKeys(ctx context.Context) error
+	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeletePatient(ctx context.Context, id uuid.UUID) (int64, error)
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	GetDoctorByID(ctx context.Context, id uuid.UUID) (GetDoctorByIDRow, error)
@@ -41,7 +41,10 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
-	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error
+	// DO UPDATE ... WHERE false + RETURNING: concurrent inserts of the same key
+	// serialize; the loser gets the winner's row back instead of silently
+	// committing a duplicate booking.
+	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) (string, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (Notification, error)
 	ListActiveAppointmentsForDoctorInRange(ctx context.Context, arg ListActiveAppointmentsForDoctorInRangeParams) ([]Appointment, error)
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)

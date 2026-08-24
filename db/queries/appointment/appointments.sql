@@ -63,14 +63,18 @@ SELECT * FROM notifications WHERE nats_msg_id = $1;
 INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details)
 VALUES ($1, $2, $3, $4, $5);
 
--- name: DeleteExpiredIdempotencyKeys :exec
+-- name: DeleteExpiredIdempotencyKeys :execrows
 DELETE FROM idempotency_keys WHERE expires_at < now();
 
 -- name: GetIdempotentResponse :one
-SELECT response_status, response_body FROM idempotency_keys
+SELECT user_id, request_hash, response_status, response_body FROM idempotency_keys
 WHERE key = $1 AND endpoint = $2 AND expires_at > now();
 
--- name: InsertIdempotentResponse :exec
+-- name: InsertIdempotentResponse :one
+-- DO UPDATE ... WHERE false + RETURNING: concurrent inserts of the same key
+-- serialize; the loser gets the winner's row back instead of silently
+-- committing a duplicate booking.
 INSERT INTO idempotency_keys (key, endpoint, user_id, request_hash, response_status, response_body, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => sqlc.arg('ttl_seconds')::int))
-ON CONFLICT (key, endpoint) DO NOTHING;
+ON CONFLICT (key, endpoint) DO UPDATE SET key = EXCLUDED.key WHERE false
+RETURNING key;

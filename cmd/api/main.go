@@ -144,6 +144,12 @@ func run() error {
 		errCh <- srv.ListenAndServe()
 	}()
 
+	// Periodically purge expired idempotency keys so the table cannot grow
+	// without bound (BR-07 hygiene).
+	idemCleaner := appt.NewIdempotencyCleaner(pool, cfg.IdempotencyTTL/2)
+	go idemCleaner.Run(ctx, log)
+	defer idemCleaner.Stop()
+
 	select {
 	case <-ctx.Done():
 		log.Info("shutdown signal received")

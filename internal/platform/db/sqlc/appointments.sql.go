@@ -85,13 +85,16 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 	return i, err
 }
 
-const deleteExpiredIdempotencyKeys = `-- name: DeleteExpiredIdempotencyKeys :exec
+const deleteExpiredIdempotencyKeys = `-- name: DeleteExpiredIdempotencyKeys :execrows
 DELETE FROM idempotency_keys WHERE expires_at < now()
 `
 
-func (q *Queries) DeleteExpiredIdempotencyKeys(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deleteExpiredIdempotencyKeys)
-	return err
+func (q *Queries) DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredIdempotencyKeys)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getAppointmentByID = `-- name: GetAppointmentByID :one
@@ -119,7 +122,7 @@ func (q *Queries) GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appoint
 }
 
 const getIdempotentResponse = `-- name: GetIdempotentResponse :one
-SELECT response_status, response_body FROM idempotency_keys
+SELECT user_id, request_hash, response_status, response_body FROM idempotency_keys
 WHERE key = $1 AND endpoint = $2 AND expires_at > now()
 `
 
@@ -129,6 +132,8 @@ type GetIdempotentResponseParams struct {
 }
 
 type GetIdempotentResponseRow struct {
+	UserID         *uuid.UUID
+	RequestHash    string
 	ResponseStatus int32
 	ResponseBody   *json.RawMessage
 }
@@ -136,7 +141,12 @@ type GetIdempotentResponseRow struct {
 func (q *Queries) GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error) {
 	row := q.db.QueryRow(ctx, getIdempotentResponse, arg.Key, arg.Endpoint)
 	var i GetIdempotentResponseRow
-	err := row.Scan(&i.ResponseStatus, &i.ResponseBody)
+	err := row.Scan(
+		&i.UserID,
+		&i.RequestHash,
+		&i.ResponseStatus,
+		&i.ResponseBody,
+	)
 	return i, err
 }
 
@@ -188,10 +198,11 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 	return err
 }
 
-const insertIdempotentResponse = `-- name: InsertIdempotentResponse :exec
+const insertIdempotentResponse = `-- name: InsertIdempotentResponse :one
 INSERT INTO idempotency_keys (key, endpoint, user_id, request_hash, response_status, response_body, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7::int))
-ON CONFLICT (key, endpoint) DO NOTHING
+ON CONFLICT (key, endpoint) DO UPDATE SET key = EXCLUDED.key WHERE false
+RETURNING key
 `
 
 type InsertIdempotentResponseParams struct {
@@ -204,8 +215,11 @@ type InsertIdempotentResponseParams struct {
 	TtlSeconds     int32
 }
 
-func (q *Queries) InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error {
-	_, err := q.db.Exec(ctx, insertIdempotentResponse,
+// DO UPDATE ... WHERE false + RETURNING: concurrent inserts of the same key
+// serialize; the loser gets the winner's row back instead of silently
+// committing a duplicate booking.
+func (q *Queries) InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) (string, error) {
+	row := q.db.QueryRow(ctx, insertIdempotentResponse,
 		arg.Key,
 		arg.Endpoint,
 		arg.UserID,
@@ -214,7 +228,9 @@ func (q *Queries) InsertIdempotentResponse(ctx context.Context, arg InsertIdempo
 		arg.ResponseBody,
 		arg.TtlSeconds,
 	)
-	return err
+	var key string
+	err := row.Scan(&key)
+	return key, err
 }
 
 const insertNotification = `-- name: InsertNotification :one

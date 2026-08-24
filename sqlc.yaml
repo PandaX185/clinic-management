@@ -2,8 +2,10 @@ version: '2'
 sql:
 - engine: postgresql
   schema:
+  - db/migrations/global/000000_extensions.up.sql
+  - db/migrations/global/000001_functions.up.sql
   - db/migrations/000002_init.up.sql
-  - db/migrations/sqlc_schema/tenants.sql
+  - db/migrations/global/000001_tenants.up.sql
   queries:
   - db/queries/auth
   - db/queries/patient

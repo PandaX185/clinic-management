@@ -17,3 +17,5 @@ coverage.html
 
 # Go workspace
 go.work.sum
+
+.hermes/

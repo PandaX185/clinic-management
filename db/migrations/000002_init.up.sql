@@ -195,15 +195,8 @@ CREATE TABLE idempotency_keys (
 CREATE INDEX idx_idempotency_keys_expires ON idempotency_keys(expires_at);
 
 -- ---------------------------------------------------------------------------
--- updated_at triggers
+-- updated_at triggers (set_updated_at() lives in global/000002)
 -- ---------------------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();

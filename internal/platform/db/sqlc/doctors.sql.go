@@ -220,7 +220,7 @@ const listDoctors = `-- name: ListDoctors :many
 SELECT d.id, d.user_id, d.specialization, d.license_number, d.bio, d.is_active, d.created_at, d.updated_at, u.full_name, u.email AS user_email FROM doctors d
 JOIN users u ON u.id = d.user_id
 WHERE ($3::boolean = false OR d.is_active = $3)
-  AND $4::text = '' OR d.specialization ILIKE '%' || $4 || '%'
+  AND ($4::text = '' OR d.specialization ILIKE '%' || $4 || '%')
 ORDER BY u.full_name
 LIMIT $1 OFFSET $2
 `

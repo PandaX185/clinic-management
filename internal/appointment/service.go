@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -201,7 +202,7 @@ func (s *Service) cancelAuthorized(ctx context.Context, id uuid.UUID, reason str
 			Action:     "appointment.cancelled",
 			EntityID:   id,
 			EntityType: "appointment",
-			Details:    []byte(`{"reason":` + quote(reason) + `}`),
+			Details:    marshalDetails(map[string]string{"reason": reason}),
 		})
 	}
 	return updated, nil
@@ -376,4 +377,13 @@ func hashRequest(in BookInput) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func quote(s string) string { return `"` + s + `"` }
+func marshalDetails(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Structured values here are plain maps of strings; this cannot
+		// realistically fail. Fall back to a valid empty JSON object so the
+		// audit row's details column never receives malformed JSON.
+		return []byte(`{}`)
+	}
+	return b
+}

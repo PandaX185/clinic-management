@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -34,7 +35,7 @@ func (a *doctorUserAdapter) CreateDoctorUser(ctx context.Context, email, passwor
 	if err != nil {
 		return nil, err
 	}
-	user, err := a.authRepo.CreateUser(ctx, email, string(hash), fullName, nil, auth.RoleDoctor)
+	user, err := a.authRepo.CreateUser(ctx, strings.ToLower(email), string(hash), fullName, nil, auth.RoleDoctor)
 	if err != nil {
 		return nil, err
 	}

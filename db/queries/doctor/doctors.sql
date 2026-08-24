@@ -12,7 +12,7 @@ WHERE d.id = $1;
 SELECT d.*, u.full_name, u.email AS user_email FROM doctors d
 JOIN users u ON u.id = d.user_id
 WHERE (@is_active::boolean = false OR d.is_active = @is_active)
-  AND sqlc.arg('specialization')::text = '' OR d.specialization ILIKE '%' || sqlc.arg('specialization') || '%'
+  AND (sqlc.arg('specialization')::text = '' OR d.specialization ILIKE '%' || sqlc.arg('specialization') || '%')
 ORDER BY u.full_name
 LIMIT $1 OFFSET $2;
 

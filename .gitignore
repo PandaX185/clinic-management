@@ -1,27 +1,21 @@
-# Build artifacts
-/bin/
-*.exe
-*.test
-*.out
-
-# Sprint board notes
-/board/
-
-# Scratch SQL experiments
-/uuidv7_*.sql
+# Binaries
+bin/
+clinic-management
+coverage.out
+coverage.html
 
 # Environment & secrets
 .env
-.env.*
-config.local.yaml
-
-# Logs
-*.log
+.env.local
 
 # IDE
 .idea/
-.vscode/
 *.swp
 
 # OS
 .DS_Store
+
+# Go workspace
+go.work.sum
+
+.hermes/

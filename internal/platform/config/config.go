@@ -1,53 +1,38 @@
 package config
 
 import (
-	"github.com/spf13/viper"
+	"time"
+
+	"github.com/caarlos0/env/v11"
 )
 
 type Config struct {
-	Port              string `mapstructure:"port"`
-	LogLevel          string `mapstructure:"log_level"`
-	DatabaseURL       string `mapstructure:"database_url"`
-	RedisURL          string `mapstructure:"redis_url"`
-	NATSURL           string `mapstructure:"nats_url"`
-	JWTSecret         string `mapstructure:"jwt_secret"`
-	JWTRefreshSecret  string `mapstructure:"jwt_refresh_secret"`
-	JWTAccessTTL      string `mapstructure:"jwt_access_ttl"`
-	JWTRefreshTTL     string `mapstructure:"jwt_refresh_ttl"`
+	Env  string `env:"ENV" envDefault:"development"`
+	Port string `env:"PORT" envDefault:"8080"`
+
+	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
+	Format   string `env:"LOG_FORMAT" envDefault:"json"`
+
+	DatabaseURL string `env:"DATABASE_URL,notEmpty"`
+	RedisURL    string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
+	NATSURL     string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
+
+	JWTSecret        string        `env:"JWT_SECRET,notEmpty"`
+	JWTRefreshSecret string        `env:"JWT_REFRESH_SECRET,notEmpty"`
+	AccessTokenTTL   time.Duration `env:"ACCESS_TOKEN_TTL" envDefault:"15m"`
+	RefreshTokenTTL  time.Duration `env:"REFRESH_TOKEN_TTL" envDefault:"168h"`
+
+	BcryptCost int `env:"BCRYPT_COST" envDefault:"12"`
+
+	IdempotencyTTL     time.Duration `env:"IDEMPOTENCY_TTL" envDefault:"24h"`
+	RateLimitPerMinute int           `env:"RATE_LIMIT_PER_MINUTE" envDefault:"60"`
+
+	ReadTimeout    time.Duration `env:"READ_TIMEOUT" envDefault:"10s"`
+	WriteTimeout   time.Duration `env:"WRITE_TIMEOUT" envDefault:"10s"`
+	IdleTimeout    time.Duration `env:"IDLE_TIMEOUT" envDefault:"120s"`
+	ShutdownPeriod time.Duration `env:"SHUTDOWN_PERIOD" envDefault:"30s"`
 }
 
-func Load() (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("./config")
-	viper.AddConfigPath("/etc/clinic")
-
-	// Environment variable overrides
-	viper.AutomaticEnv()
-	viper.SetEnvPrefix("CLINIC")
-
-	// Defaults for local development
-	viper.SetDefault("port", "8080")
-	viper.SetDefault("log_level", "info")
-	viper.SetDefault("database_url", "postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable")
-	viper.SetDefault("redis_url", "redis://localhost:6379")
-	viper.SetDefault("nats_url", "nats://localhost:4222")
-	viper.SetDefault("jwt_secret", "dev-secret-change-in-production")
-	viper.SetDefault("jwt_refresh_secret", "dev-refresh-secret-change-in-production")
-	viper.SetDefault("jwt_access_ttl", "15m")
-	viper.SetDefault("jwt_refresh_ttl", "168h")
-
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, err
-		}
-	}
-
-	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
+func Load() (Config, error) {
+	return env.ParseAs[Config]()
 }

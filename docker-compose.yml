@@ -1,84 +1,62 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: clinic-postgres
     environment:
-      POSTGRES_DB: clinic
       POSTGRES_USER: clinic
       POSTGRES_PASSWORD: clinic
+      POSTGRES_DB: clinic
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clinic -d clinic"]
       interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - clinic-network
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: clinic-redis
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
-      retries: 5
-    networks:
-      - clinic-network
+      retries: 10
 
   nats:
     image: nats:2.10-alpine
-    container_name: clinic-nats
-    command: ["-js", "-m", "8222"]
+    command: ["-js"]
     ports:
-      - "4222:4222"   # Client connections
-      - "8222:8222"   # HTTP monitoring
-    volumes:
-      - nats_data:/data
+      - "4222:4222"
+      - "8222:8222"
     healthcheck:
-      test: ["CMD", "nats", "server", "check", "jetstream"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - clinic-network
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
-  # Optional: API service for docker-compose up (commented out for local dev)
-  # api:
-  #   build: .
-  #   container_name: clinic-api
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     DATABASE_URL: postgres://clinic:clinic@postgres:5432/clinic?sslmode=disable
-  #     REDIS_URL: redis://redis:6379
-  #     NATS_URL: nats://nats:4222
-  #     JWT_SECRET: your-secret-key-change-in-production
-  #     JWT_REFRESH_SECRET: your-refresh-secret-change-in-production
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     nats:
-  #       condition: service_healthy
-  #   networks:
-  #     - clinic-network
+  api:
+    build: .
+    environment:
+      ENV: development
+      LOG_FORMAT: json
+      PORT: "8080"
+      DATABASE_URL: postgres://clinic:clinic@postgres:5432/clinic?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      NATS_URL: nats://nats:4222
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
-  redis_data:
-  nats_data:
-
-networks:
-  clinic-network:
-    driver: bridge
+  pgdata:

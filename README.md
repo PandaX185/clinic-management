@@ -1,122 +1,105 @@
-# Clinic Appointment System
+# Clinic Management
 
-> Production-grade backend for managing patients, doctors, schedules, and appointments — strong concurrency guarantees enforced in PostgreSQL, async notifications over NATS JetStream, full observability.
+Multi-clinic appointment backend in Go — each clinic gets its own isolated Postgres schema, with global user accounts that work across clinics.
 
-Implements the **Clinic Appointment & Management Backend SRS v1.0**.
+## How multi-tenancy works
 
----
+- **One Postgres schema per clinic** (`tenant_<slug>`): patients, doctors, schedules, appointments, notifications, and audit logs all live inside the clinic's schema, so data is physically isolated.
+- **Users are global**: a single account (email/password) works at every clinic. Roles are per clinic — the same person can be a doctor at one clinic and a patient at another.
+- **Login is tenant-free.** The token identifies you, not a clinic.
+- **Each request names its clinic** via the `X-Tenant-ID` header. The middleware validates it against the tenant registry, reads your role from that clinic's `profiles` table (with a short-lived cache), and pins the DB connection to that schema. No profile there? You get patient-level access — which any signed-in user has everywhere.
+- **New clinics are provisioned programmatically**: creating a tenant runs the embedded clinical migrations inside a fresh schema.
 
-## Architecture
+## Features
 
-Layered clean architecture: HTTP → service (domain rules) → repository (PostgreSQL). Cross-cutting infrastructure lives in `internal/platform`; each domain module owns its models, business logic, transport, and persistence behind narrow interfaces.
+| Domain        | Capabilities |
+|---------------|--------------|
+| Tenants       | Schema-per-clinic isolation, programmatic provisioning, admin endpoints |
+| Patients      | Global login, auto-provisioned chart per clinic on first booking |
+| Doctors       | Profiles bound per clinic, schedules, availability engine |
+| Appointments  | Double-booking impossible (DB exclusion constraint), idempotent booking, state machine |
+| Auth          | JWT access + refresh, role-based access resolved from per-clinic profiles |
+| Notifications | Async via NATS JetStream, retries, DLQ |
 
-```
-cmd/api/                      entrypoint: config, wiring, graceful shutdown
-internal/
-  platform/
-    config/                   env-only configuration (caarlos0/env)
-    logger/                   structured zap logging
-    database/                 pgx pool
-    redis/                    cache / rate limiting / idempotency support
-    nats/                     JetStream connection + stream provisioning
-    metrics/                  Prometheus registry + collectors
-    apperr/                   typed domain errors → HTTP mapping
-    db/sqlc/                  generated data access (sqlc, pgx/v5)
-  auth/                       register/login/refresh, JWT HS256, RBAC middleware
-  patient/                    patient CRUD + search
-  doctor/                     profiles, weekly schedules, exceptions, availability engine
-  appointment/                booking (tx-safe), lifecycle state machine, reschedule/cancel
-  notification/               event forwarder, durable JetStream worker, retry/DLQ
-  server/                     router assembly, middleware chain, health endpoints
-db/
-  migrations/                 versioned SQL (golang-migrate)
-  queries/                    sqlc sources per domain
-```
+## Stack
 
-### Concurrency & integrity model
+| Layer      | Tech |
+|------------|------|
+| Language   | Go 1.25 |
+| Router     | Chi v5 |
+| Database   | PostgreSQL 16 + pgx/v5 + sqlc |
+| Migrations | golang-migrate + embedded tenant migrations |
+| Cache      | Redis 7 (rate limiting) |
+| Messaging  | NATS JetStream (optional at boot) |
+| Auth       | JWT HS256 + bcrypt |
 
-| Concern | Mechanism | SRS |
-|---|---|---|
-| Double booking | `no_overlapping_appointments` exclusion constraint (GiST on `doctor_id` + `tstzrange`) — DB rejects overlaps even under fully concurrent requests | BR-01, FR-APT-05/06 |
-| Client retries | `Idempotency-Key` header → response persisted in `idempotency_keys` inside the same transaction as the booking; racing requests replay after commit | BR-07, FR-APT-07 |
-| State machine | explicit transition table (`scheduled → confirmed → completed/cancelled/no_show`) + optimistic `version` column | BR-03/04 |
-| Availability | recurring weekly schedules − schedule exceptions − booked appointments, computed per slot | FR-DOC-03 |
-
----
-
-## Tech Stack
-
-| Layer         | Technology |
-|---------------|------------|
-| Language      | Go 1.25 |
-| Router        | Gin |
-| Database      | PostgreSQL 16 + pgx/v5 + sqlc |
-| Migrations    | golang-migrate |
-| Cache         | Redis 7 |
-| Message Bus   | NATS JetStream (work-queue retention, dedupe via `Nats-Msg-Id`, DLQ) |
-| Auth          | JWT HS256 + bcrypt |
-| Observability | Zap (structured JSON), Prometheus `/metrics`, health/readiness probes |
-| CI            | GitHub Actions (fmt, vet, sqlc drift check, race tests) |
-
----
-
-## Quick Start
+## Quick start
 
 ```bash
-cp .env.example .env          # set JWT_SECRET / JWT_REFRESH_SECRET (openssl rand -hex 32)
+git clone https://github.com/PandaX185/clinic-management.git
+cd clinic-management
 
-docker compose up -d postgres redis nats   # or: docker compose up -d  (full stack)
+# Start dependencies
+docker-compose up -d
+
+# Apply migrations
 make migrate-up
-make run
 
-curl http://localhost:8080/health
-curl http://localhost:8080/ready
+# Run
+make run
 ```
 
-### Environment Variables
+### Migrating an existing single-tenant database
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DATABASE_URL | required | PostgreSQL connection string |
-| REDIS_URL | redis://localhost:6379/0 | Redis connection |
-| NATS_URL | nats://localhost:4222 | NATS JetStream |
-| JWT_SECRET | required | Access-token signing key |
-| JWT_REFRESH_SECRET | required | Refresh-token signing key |
-| ACCESS_TOKEN_TTL / REFRESH_TOKEN_TTL | 15m / 168h | Token lifetimes |
-| PORT | 8080 | HTTP listen port |
-| LOG_LEVEL / LOG_FORMAT | info / json | Logging |
-| RATE_LIMIT_PER_MINUTE | 60 | Per-IP fixed window |
-| IDEMPOTENCY_TTL | 24h | Booking replay window |
+If you ran an older version, `cmd/migrate-to-tenants` moves existing clinical data into a `default` clinic schema:
 
----
+```bash
+go run ./cmd/migrate-to-tenants
+```
 
-## API Overview
+## API sketch
 
-Base path: `/api/v1`
+All clinical endpoints require `X-Tenant-ID: <clinic uuid>`.
 
-| Resource | Endpoints |
-|----------|-----------|
-| Auth | POST /auth/register · POST /auth/login · POST /auth/refresh · GET /auth/me |
-| Patients *(staff)* | POST/PATCH/DELETE /patients · GET /patients · GET /patients/{id} |
-| Doctors *(admin/staff writes)* | GET /doctors · GET /doctors/{id}/availability?from&to · POST/{id}/schedules · POST/{id}/exceptions |
-| Appointments | POST /appointments (`Idempotency-Key` honored) · GET /appointments?patient_id&status&from&to · GET /{id} · POST /{id}/cancel · POST /{id}/reschedule · POST /{id}/confirm · POST /{id}/complete · POST /{id}/no-show |
-| Ops | GET /health · GET /ready · GET /metrics |
+```
+POST /api/v1/auth/register          # global sign-up
+POST /api/v1/auth/login             # global login
+GET  /api/v1/tenants                # list clinics
+GET  /api/v1/tenants/mine           # your clinics
+GET  /api/v1/doctors                # doctors at X-Tenant-ID
+GET  /api/v1/appointments           # your appointments at X-Tenant-ID
+POST /api/v1/appointments           # book (patient_id is forced to you)
+POST /api/v1/appointments/{id}/cancel | /reschedule | /confirm | /complete | /no-show
+GET  /metrics                       # Prometheus
+```
 
-Errors follow one shape: `{"error": "..."}` with status from the typed domain error (400/401/403/404/409/500).
+## Project structure
 
----
+```
+├── cmd/
+│   ├── api/                    # entry point + wiring
+│   └── migrate-to-tenants/     # one-shot legacy data migration
+├── internal/
+│   ├── auth/                   # JWT, login/refresh, middleware
+│   ├── tenant/                 # tenants, memberships, profiles
+│   ├── appointment/            # domain logic, scoped repository
+│   ├── doctor/  patient/       # scoped repositories
+│   ├── notification/           # NATS worker + store
+│   └── platform/               # config, db (ScopedPool), redis, nats, metrics
+├── db/
+│   ├── migrations/global/      # tenants, users — applied once
+│   ├── migrations/tenant/      # clinical tables — applied per clinic
+│   └── queries/                # sqlc sources
+└── sqlc.yaml
+```
 
 ## Testing
 
 ```bash
-make test-race       # all tests with race detector
-make test-coverage   # HTML coverage report
-go test ./internal/appointment/ -run TestCanTransition -v
+make test-race      # unit tests + race detector
+make vet            # static analysis
+make test-coverage  # coverage report
 ```
-
-Critical invariants under test: lifecycle transitions (terminal states frozen), availability slot expansion/exception cutting/past filtering, JWT type confusion and cross-secret rejection.
-
----
 
 ## License
 

@@ -19,3 +19,5 @@ coverage.html
 go.work.sum
 
 .hermes/
+# Local product strategy — not part of the public repo
+docs/STRATEGY.md

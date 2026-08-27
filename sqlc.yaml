@@ -4,13 +4,10 @@ sql:
   schema:
   - db/migrations/global/000000_extensions.up.sql
   - db/migrations/global/000001_functions.up.sql
-  - db/migrations/000002_init.up.sql
   - db/migrations/global/000001_tenants.up.sql
   - db/queries/tenant/schema_profiles.sql
   queries:
   - db/queries/auth
-  - db/queries/patient
-  - db/queries/doctor
   - db/queries/appointment
   - db/queries/tenant
   gen:
@@ -61,11 +58,6 @@ sql:
           type: string
           pointer: true
       - db_type: pg_catalog.text
-        nullable: true
-        go_type:
-          type: string
-          pointer: true
-      - db_type: text
         nullable: true
         go_type:
           type: string

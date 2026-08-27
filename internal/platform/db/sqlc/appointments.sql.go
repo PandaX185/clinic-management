@@ -7,75 +7,87 @@ package sqlc
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countAppointments = `-- name: CountAppointments :one
-SELECT count(*) FROM appointments
-WHERE ($1::uuid IS NULL OR patient_id = $1)
-  AND ($2::uuid IS NULL OR doctor_id = $2)
-  AND ($3::text IS NULL OR status = $3)
-  AND ($4::timestamptz IS NULL OR end_time > $4)
-  AND ($5::timestamptz IS NULL OR start_time < $5)
+SELECT COUNT(*) FROM appointments
+WHERE (profile_id = $1 OR doctor_profile_id = $1)
+  AND status = ANY($2)
 `
 
 type CountAppointmentsParams struct {
-	PatientID *uuid.UUID
-	DoctorID  *uuid.UUID
-	Status    *string
-	FromTime  *time.Time
-	ToTime    *time.Time
+	ProfileID uuid.UUID
+	Status    string
 }
 
 func (q *Queries) CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countAppointments,
-		arg.PatientID,
-		arg.DoctorID,
-		arg.Status,
-		arg.FromTime,
-		arg.ToTime,
-	)
+	row := q.db.QueryRow(ctx, countAppointments, arg.ProfileID, arg.Status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createAppointment = `-- name: CreateAppointment :one
-INSERT INTO appointments (patient_id, doctor_id, start_time, end_time, status, notes, created_by)
-VALUES ($1, $2, $3, $4, 'scheduled', $5, $6)
-RETURNING id, patient_id, doctor_id, start_time, end_time, status, notes, cancellation_reason, version, created_by, created_at, updated_at
+
+INSERT INTO appointments (
+    profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11
+)
+RETURNING id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
 `
 
 type CreateAppointmentParams struct {
-	PatientID uuid.UUID
-	DoctorID  uuid.UUID
-	StartTime time.Time
-	EndTime   time.Time
-	Notes     *string
-	CreatedBy *uuid.UUID
+	ProfileID          uuid.UUID
+	DoctorProfileID    uuid.UUID
+	AppointmentTypeID  uuid.UUID
+	ScheduledStart     time.Time
+	ScheduledEnd       time.Time
+	Status             string
+	VisitNotes         pgtype.Text
+	FollowUpDate       *time.Time
+	CancellationReason pgtype.Text
+	Version            int32
+	CreatedBy          *uuid.UUID
 }
 
+// Appointments (schema v2: profile-based, typed, queue-ready)
 func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error) {
 	row := q.db.QueryRow(ctx, createAppointment,
-		arg.PatientID,
-		arg.DoctorID,
-		arg.StartTime,
-		arg.EndTime,
-		arg.Notes,
+		arg.ProfileID,
+		arg.DoctorProfileID,
+		arg.AppointmentTypeID,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
+		arg.Status,
+		arg.VisitNotes,
+		arg.FollowUpDate,
+		arg.CancellationReason,
+		arg.Version,
 		arg.CreatedBy,
 	)
 	var i Appointment
 	err := row.Scan(
 		&i.ID,
-		&i.PatientID,
-		&i.DoctorID,
-		&i.StartTime,
-		&i.EndTime,
+		&i.ProfileID,
+		&i.DoctorProfileID,
+		&i.AppointmentTypeID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Status,
-		&i.Notes,
+		&i.VisitNotes,
+		&i.FollowUpDate,
 		&i.CancellationReason,
 		&i.Version,
 		&i.CreatedBy,
@@ -85,20 +97,12 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 	return i, err
 }
 
-const deleteExpiredIdempotencyKeys = `-- name: DeleteExpiredIdempotencyKeys :execrows
-DELETE FROM idempotency_keys WHERE expires_at < now()
-`
-
-func (q *Queries) DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteExpiredIdempotencyKeys)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const getAppointmentByID = `-- name: GetAppointmentByID :one
-SELECT id, patient_id, doctor_id, start_time, end_time, status, notes, cancellation_reason, version, created_by, created_at, updated_at FROM appointments WHERE id = $1
+SELECT id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
+FROM appointments WHERE id = $1
 `
 
 func (q *Queries) GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error) {
@@ -106,12 +110,14 @@ func (q *Queries) GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appoint
 	var i Appointment
 	err := row.Scan(
 		&i.ID,
-		&i.PatientID,
-		&i.DoctorID,
-		&i.StartTime,
-		&i.EndTime,
+		&i.ProfileID,
+		&i.DoctorProfileID,
+		&i.AppointmentTypeID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Status,
-		&i.Notes,
+		&i.VisitNotes,
+		&i.FollowUpDate,
 		&i.CancellationReason,
 		&i.Version,
 		&i.CreatedBy,
@@ -121,254 +127,31 @@ func (q *Queries) GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appoint
 	return i, err
 }
 
-const getIdempotentResponse = `-- name: GetIdempotentResponse :one
-SELECT user_id, request_hash, response_status, response_body FROM idempotency_keys
-WHERE key = $1 AND endpoint = $2 AND expires_at > now()
-`
-
-type GetIdempotentResponseParams struct {
-	Key      string
-	Endpoint string
-}
-
-type GetIdempotentResponseRow struct {
-	UserID         *uuid.UUID
-	RequestHash    string
-	ResponseStatus int32
-	ResponseBody   *json.RawMessage
-}
-
-func (q *Queries) GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error) {
-	row := q.db.QueryRow(ctx, getIdempotentResponse, arg.Key, arg.Endpoint)
-	var i GetIdempotentResponseRow
-	err := row.Scan(
-		&i.UserID,
-		&i.RequestHash,
-		&i.ResponseStatus,
-		&i.ResponseBody,
-	)
-	return i, err
-}
-
-const getNotificationByMsgID = `-- name: GetNotificationByMsgID :one
-SELECT id, appointment_id, channel, recipient, subject, body, status, attempts, last_error, nats_msg_id, created_at, updated_at FROM notifications WHERE nats_msg_id = $1
-`
-
-func (q *Queries) GetNotificationByMsgID(ctx context.Context, natsMsgID *string) (Notification, error) {
-	row := q.db.QueryRow(ctx, getNotificationByMsgID, natsMsgID)
-	var i Notification
-	err := row.Scan(
-		&i.ID,
-		&i.AppointmentID,
-		&i.Channel,
-		&i.Recipient,
-		&i.Subject,
-		&i.Body,
-		&i.Status,
-		&i.Attempts,
-		&i.LastError,
-		&i.NatsMsgID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getPatientContactEmail = `-- name: GetPatientContactEmail :one
-SELECT u.email AS contact FROM appointments a
-JOIN patients p ON p.id = a.patient_id
-LEFT JOIN users u ON u.id = p.user_id
-WHERE a.id = $1
-`
-
-// Resolve the notification recipient: prefer the linked user account's
-// email, fall back to the patients.phone column only for SMS later.
-func (q *Queries) GetPatientContactEmail(ctx context.Context, id uuid.UUID) (*string, error) {
-	row := q.db.QueryRow(ctx, getPatientContactEmail, id)
-	var contact *string
-	err := row.Scan(&contact)
-	return contact, err
-}
-
-const insertAuditLog = `-- name: InsertAuditLog :exec
-INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-type InsertAuditLogParams struct {
-	ActorUserID *uuid.UUID
-	Action      string
-	EntityType  string
-	EntityID    *uuid.UUID
-	Details     json.RawMessage
-}
-
-func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error {
-	_, err := q.db.Exec(ctx, insertAuditLog,
-		arg.ActorUserID,
-		arg.Action,
-		arg.EntityType,
-		arg.EntityID,
-		arg.Details,
-	)
-	return err
-}
-
-const insertIdempotentResponse = `-- name: InsertIdempotentResponse :one
-INSERT INTO idempotency_keys (key, endpoint, user_id, request_hash, response_status, response_body, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(secs => $7::int))
-ON CONFLICT (key, endpoint) DO UPDATE SET key = EXCLUDED.key WHERE false
-RETURNING key
-`
-
-type InsertIdempotentResponseParams struct {
-	Key            string
-	Endpoint       string
-	UserID         *uuid.UUID
-	RequestHash    string
-	ResponseStatus int32
-	ResponseBody   *json.RawMessage
-	TtlSeconds     int32
-}
-
-// DO UPDATE ... WHERE false + RETURNING: concurrent inserts of the same key
-// serialize; the loser gets the winner's row back instead of silently
-// committing a duplicate booking.
-func (q *Queries) InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) (string, error) {
-	row := q.db.QueryRow(ctx, insertIdempotentResponse,
-		arg.Key,
-		arg.Endpoint,
-		arg.UserID,
-		arg.RequestHash,
-		arg.ResponseStatus,
-		arg.ResponseBody,
-		arg.TtlSeconds,
-	)
-	var key string
-	err := row.Scan(&key)
-	return key, err
-}
-
-const insertNotification = `-- name: InsertNotification :one
-INSERT INTO notifications (id, appointment_id, channel, recipient, subject, body, nats_msg_id)
-VALUES ($1::uuid, $2, $3::varchar, $4::varchar, $5::text, $6::text, $7::text)
-ON CONFLICT (nats_msg_id) DO NOTHING
-RETURNING id, appointment_id, channel, recipient, subject, body, status, attempts, last_error, nats_msg_id, created_at, updated_at
-`
-
-type InsertNotificationParams struct {
-	ID            uuid.UUID
-	AppointmentID *uuid.UUID
-	Channel       string
-	Recipient     string
-	Subject       string
-	Body          string
-	MsgID         string
-}
-
-func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (Notification, error) {
-	row := q.db.QueryRow(ctx, insertNotification,
-		arg.ID,
-		arg.AppointmentID,
-		arg.Channel,
-		arg.Recipient,
-		arg.Subject,
-		arg.Body,
-		arg.MsgID,
-	)
-	var i Notification
-	err := row.Scan(
-		&i.ID,
-		&i.AppointmentID,
-		&i.Channel,
-		&i.Recipient,
-		&i.Subject,
-		&i.Body,
-		&i.Status,
-		&i.Attempts,
-		&i.LastError,
-		&i.NatsMsgID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const listActiveAppointmentsForDoctorInRange = `-- name: ListActiveAppointmentsForDoctorInRange :many
-SELECT id, patient_id, doctor_id, start_time, end_time, status, notes, cancellation_reason, version, created_by, created_at, updated_at FROM appointments
-WHERE doctor_id = $1 AND status IN ('scheduled', 'confirmed')
-  AND tstzrange(start_time, end_time) && tstzrange($2::timestamptz, $3::timestamptz)
-`
-
-type ListActiveAppointmentsForDoctorInRangeParams struct {
-	DoctorID   uuid.UUID
-	RangeStart time.Time
-	RangeEnd   time.Time
-}
-
-func (q *Queries) ListActiveAppointmentsForDoctorInRange(ctx context.Context, arg ListActiveAppointmentsForDoctorInRangeParams) ([]Appointment, error) {
-	rows, err := q.db.Query(ctx, listActiveAppointmentsForDoctorInRange, arg.DoctorID, arg.RangeStart, arg.RangeEnd)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Appointment{}
-	for rows.Next() {
-		var i Appointment
-		if err := rows.Scan(
-			&i.ID,
-			&i.PatientID,
-			&i.DoctorID,
-			&i.StartTime,
-			&i.EndTime,
-			&i.Status,
-			&i.Notes,
-			&i.CancellationReason,
-			&i.Version,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listAppointments = `-- name: ListAppointments :many
-SELECT id, patient_id, doctor_id, start_time, end_time, status, notes, cancellation_reason, version, created_by, created_at, updated_at FROM appointments
-WHERE ($3::uuid IS NULL OR patient_id = $3)
-  AND ($4::uuid IS NULL OR doctor_id = $4)
-  AND ($5::text IS NULL OR status = $5)
-  AND ($6::timestamptz IS NULL OR end_time > $6)
-  AND ($7::timestamptz IS NULL OR start_time < $7)
-ORDER BY start_time DESC
-LIMIT $1 OFFSET $2
+SELECT id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
+FROM appointments
+WHERE (profile_id = $1 OR doctor_profile_id = $1)
+  AND status = ANY($2)
+ORDER BY scheduled_start DESC
+LIMIT $3 OFFSET $4
 `
 
 type ListAppointmentsParams struct {
+	ProfileID uuid.UUID
+	Status    string
 	Limit     int32
 	Offset    int32
-	PatientID *uuid.UUID
-	DoctorID  *uuid.UUID
-	Status    *string
-	FromTime  *time.Time
-	ToTime    *time.Time
 }
 
 func (q *Queries) ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error) {
 	rows, err := q.db.Query(ctx, listAppointments,
+		arg.ProfileID,
+		arg.Status,
 		arg.Limit,
 		arg.Offset,
-		arg.PatientID,
-		arg.DoctorID,
-		arg.Status,
-		arg.FromTime,
-		arg.ToTime,
 	)
 	if err != nil {
 		return nil, err
@@ -379,12 +162,14 @@ func (q *Queries) ListAppointments(ctx context.Context, arg ListAppointmentsPara
 		var i Appointment
 		if err := rows.Scan(
 			&i.ID,
-			&i.PatientID,
-			&i.DoctorID,
-			&i.StartTime,
-			&i.EndTime,
+			&i.ProfileID,
+			&i.DoctorProfileID,
+			&i.AppointmentTypeID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
 			&i.Status,
-			&i.Notes,
+			&i.VisitNotes,
+			&i.FollowUpDate,
 			&i.CancellationReason,
 			&i.Version,
 			&i.CreatedBy,
@@ -401,66 +186,37 @@ func (q *Queries) ListAppointments(ctx context.Context, arg ListAppointmentsPara
 	return items, nil
 }
 
-const markNotificationDead = `-- name: MarkNotificationDead :exec
-UPDATE notifications SET status = 'dead_letter', attempts = attempts + 1, last_error = $2 WHERE id = $1
-`
-
-type MarkNotificationDeadParams struct {
-	ID        uuid.UUID
-	LastError *string
-}
-
-func (q *Queries) MarkNotificationDead(ctx context.Context, arg MarkNotificationDeadParams) error {
-	_, err := q.db.Exec(ctx, markNotificationDead, arg.ID, arg.LastError)
-	return err
-}
-
-const markNotificationFailed = `-- name: MarkNotificationFailed :exec
-UPDATE notifications SET status = 'failed', attempts = attempts + 1, last_error = $2 WHERE id = $1
-`
-
-type MarkNotificationFailedParams struct {
-	ID        uuid.UUID
-	LastError *string
-}
-
-func (q *Queries) MarkNotificationFailed(ctx context.Context, arg MarkNotificationFailedParams) error {
-	_, err := q.db.Exec(ctx, markNotificationFailed, arg.ID, arg.LastError)
-	return err
-}
-
-const markNotificationSent = `-- name: MarkNotificationSent :exec
-UPDATE notifications SET status = 'sent' WHERE id = $1
-`
-
-func (q *Queries) MarkNotificationSent(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markNotificationSent, id)
-	return err
-}
-
 const rescheduleAppointment = `-- name: RescheduleAppointment :one
-UPDATE appointments SET start_time = $2, end_time = $3, version = version + 1
-WHERE id = $1 AND status IN ('scheduled', 'confirmed')
-RETURNING id, patient_id, doctor_id, start_time, end_time, status, notes, cancellation_reason, version, created_by, created_at, updated_at
+UPDATE appointments SET
+    scheduled_start = $2,
+    scheduled_end   = $3,
+    version         = version + 1
+WHERE id = $1
+RETURNING id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
 `
 
 type RescheduleAppointmentParams struct {
-	ID        uuid.UUID
-	StartTime time.Time
-	EndTime   time.Time
+	ID             uuid.UUID
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
 }
 
 func (q *Queries) RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error) {
-	row := q.db.QueryRow(ctx, rescheduleAppointment, arg.ID, arg.StartTime, arg.EndTime)
+	row := q.db.QueryRow(ctx, rescheduleAppointment, arg.ID, arg.ScheduledStart, arg.ScheduledEnd)
 	var i Appointment
 	err := row.Scan(
 		&i.ID,
-		&i.PatientID,
-		&i.DoctorID,
-		&i.StartTime,
-		&i.EndTime,
+		&i.ProfileID,
+		&i.DoctorProfileID,
+		&i.AppointmentTypeID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Status,
-		&i.Notes,
+		&i.VisitNotes,
+		&i.FollowUpDate,
 		&i.CancellationReason,
 		&i.Version,
 		&i.CreatedBy,
@@ -471,18 +227,22 @@ func (q *Queries) RescheduleAppointment(ctx context.Context, arg RescheduleAppoi
 }
 
 const transitionAppointmentStatus = `-- name: TransitionAppointmentStatus :one
-UPDATE appointments SET status = $2,
-    cancellation_reason = COALESCE($3, cancellation_reason),
+UPDATE appointments SET
+    status = $2,
+    cancellation_reason = $3,
     version = version + 1
 WHERE id = $1 AND status = $4
-RETURNING id, patient_id, doctor_id, start_time, end_time, status, notes, cancellation_reason, version, created_by, created_at, updated_at
+RETURNING id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
 `
 
 type TransitionAppointmentStatusParams struct {
 	ID                 uuid.UUID
 	Status             string
-	CancellationReason *string
-	ExpectedStatus     string
+	CancellationReason pgtype.Text
+	Status_2           string
 }
 
 func (q *Queries) TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error) {
@@ -490,17 +250,19 @@ func (q *Queries) TransitionAppointmentStatus(ctx context.Context, arg Transitio
 		arg.ID,
 		arg.Status,
 		arg.CancellationReason,
-		arg.ExpectedStatus,
+		arg.Status_2,
 	)
 	var i Appointment
 	err := row.Scan(
 		&i.ID,
-		&i.PatientID,
-		&i.DoctorID,
-		&i.StartTime,
-		&i.EndTime,
+		&i.ProfileID,
+		&i.DoctorProfileID,
+		&i.AppointmentTypeID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Status,
-		&i.Notes,
+		&i.VisitNotes,
+		&i.FollowUpDate,
 		&i.CancellationReason,
 		&i.Version,
 		&i.CreatedBy,

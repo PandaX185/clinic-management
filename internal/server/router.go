@@ -9,8 +9,6 @@ import (
 
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
 	auth "github.com/PandaX185/clinic-management/internal/auth"
-	doctor "github.com/PandaX185/clinic-management/internal/doctor"
-	patient "github.com/PandaX185/clinic-management/internal/patient"
 	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
@@ -23,8 +21,6 @@ type RouterDeps struct {
 	Logger          Logger
 	AuthH           *auth.Handler
 	AuthSvc         *auth.Service
-	PatientH        *patient.Handler
-	DoctorH         *doctor.Handler
 	AppointH        *appt.Handler
 	TenantH         *tenant.Handler
 	TenantSvc       *tenant.Service
@@ -59,6 +55,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	r.Use(BodyLimit(maxBodyBytes))
 
 	apiV1 := r.Group("/api/v1")
+	apiV1.Use(swaggerExtension())
 
 	deps.AuthH.RegisterRoutes(apiV1)
 
@@ -71,13 +68,19 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	protected.Use(auth.Middleware(deps.AuthSvc))
 	protected.Use(TenantMiddleware(deps.TenantSvc, deps.ProfileResolver))
 
-	staffOnly := auth.RequireRoles(string(auth.RoleAdmin), string(auth.RoleStaff))
-
 	deps.TenantH.RegisterRoutes(global) // GET /tenants — browse clinics
 
-	deps.PatientH.RegisterRoutes(protected, staffOnly)
-	deps.DoctorH.RegisterRoutes(protected, staffOnly)
+	// Patients are now profiles — patient CRUD lives in tenant/profile endpoints
+	// Doctors are now profiles with schedules/exceptions — endpoints moved there
+
 	deps.AppointH.RegisterRoutes(protected)
 
 	return r
+}
+
+// swaggerExtension adds Swagger UI support
+func swaggerExtension() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
 }

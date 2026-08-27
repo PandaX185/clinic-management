@@ -1,39 +1,51 @@
--- Global identity extension for multi-tenancy. sqlc reads the real migration
--- files (see sqlc.yaml); this file exists so the tenants table is part of
--- the same migration lineage applied by golang-migrate.
+-- Schema v2 — Global schema (applied once per database).
+-- Replaces the v1 lineage: users are phone-first (E.164), tenants gain
+-- configuration, audit/notification tables are gone.
+
+CREATE TABLE users (
+    id            UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    phone         VARCHAR(20)  NOT NULL UNIQUE, -- E.164, e.g. +201****5678
+    password_hash VARCHAR(255) NOT NULL,
+    full_name     VARCHAR(255) NOT NULL,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active', 'deactivated')),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE TABLE user_refresh_tokens (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    user_id          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash       VARCHAR(64) NOT NULL UNIQUE,
+    expires_at       TIMESTAMPTZ NOT NULL,
+    revoked          BOOLEAN     NOT NULL DEFAULT FALSE,
+    replaced_by_hash VARCHAR(64),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_user_refresh_tokens_user_id ON user_refresh_tokens(user_id);
 
 CREATE TABLE tenants (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    name VARCHAR(255) NOT NULL,
-    slug VARCHAR(63) NOT NULL UNIQUE CHECK (slug ~ '^[a-z][a-z0-9_]{0,62}$'),
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    name       VARCHAR(255) NOT NULL,
+    slug       VARCHAR(63)  NOT NULL UNIQUE CHECK (slug ~ '^[a-z][a-z0-9_]{0,62}$'),
+    status     VARCHAR(20)  NOT NULL DEFAULT 'active'
+               CHECK (status IN ('active', 'inactive')),
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE TRIGGER trg_tenants_updated_at BEFORE UPDATE ON tenants
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
--- Staff/doctor bindings: which clinics appear in a user's tenant list at
--- login. Patients are not listed here — they act in any active clinic and
--- get an auto-provisioned per-tenant profile instead.
-CREATE TABLE user_tenants (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (user_id, tenant_id)
+CREATE TABLE tenant_configs (
+    id            UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    tenant_id     UUID        NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+    language      VARCHAR(10) NOT NULL DEFAULT 'en',
+    timezone      VARCHAR(64) NOT NULL DEFAULT 'UTC',
+    opening_hours JSONB       NOT NULL DEFAULT '{}',
+    settings      JSONB       NOT NULL DEFAULT '{}',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE INDEX idx_user_tenants_user ON user_tenants(user_id);
 
 -- Seed the default clinic that existing single-tenant data migrates into.
 INSERT INTO tenants (name, slug) VALUES ('Default Clinic', 'default')
-ON CONFLICT (slug) DO NOTHING;
-
--- sqlc visibility only: profiles physically live in each tenant schema
--- (db/migrations/tenant/000002_profiles.up.sql). Declared here so generated
--- code type-checks; identical column shape.
--- (sqlc parses this file but the table is schema-qualified at runtime via
--- search_path, so no name collision occurs.)
+ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug;

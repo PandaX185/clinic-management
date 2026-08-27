@@ -4,10 +4,18 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
 
+const (
+	CtxUserID = "auth_user_id"
+	CtxRoles  = "auth_roles"
+	CtxClaims = "auth_claims"
+)
+
+// Middleware verifies the JWT access token and extracts the user ID.
+// Roles are NOT in the JWT — they're resolved per-request by TenantMiddleware
+// using the X-Tenant-ID header and the tenant's profiles table.
 func Middleware(svc *Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
@@ -25,12 +33,14 @@ func Middleware(svc *Service) gin.HandlerFunc {
 			return
 		}
 		c.Set(CtxUserID, claims.UserID.String())
-		c.Set(CtxRoles, claims.Roles)
 		c.Set("auth_claims", claims)
 		c.Next()
 	}
 }
 
+// RequireRoles checks that the caller has one of the required roles.
+// These are set by TenantMiddleware from the tenant-scoped DB query,
+// not from the JWT.
 func RequireRoles(roles ...string) gin.HandlerFunc {
 	required := make(map[string]struct{}, len(roles))
 	for _, r := range roles {

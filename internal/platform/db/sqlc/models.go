@@ -14,62 +14,31 @@ import (
 
 type Appointment struct {
 	ID                 uuid.UUID
-	PatientID          uuid.UUID
-	DoctorID           uuid.UUID
-	StartTime          time.Time
-	EndTime            time.Time
+	ProfileID          uuid.UUID
+	DoctorProfileID    uuid.UUID
+	AppointmentTypeID  uuid.UUID
+	ScheduledStart     time.Time
+	ScheduledEnd       time.Time
 	Status             string
-	Notes              *string
-	CancellationReason *string
+	VisitNotes         pgtype.Text
+	FollowUpDate       *time.Time
+	CancellationReason pgtype.Text
 	Version            int32
 	CreatedBy          *uuid.UUID
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
 
-type AuditLog struct {
-	ID          uuid.UUID
-	ActorUserID *uuid.UUID
-	Action      string
-	EntityType  string
-	EntityID    *uuid.UUID
-	Details     json.RawMessage
-	CreatedAt   time.Time
-}
-
-type Doctor struct {
-	ID             uuid.UUID
-	UserID         uuid.UUID
-	Specialization string
-	LicenseNumber  string
-	Bio            *string
-	IsActive       bool
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
-type DoctorSchedule struct {
-	ID          uuid.UUID
-	DoctorID    uuid.UUID
-	DayOfWeek   int16
-	StartTime   pgtype.Time
-	EndTime     pgtype.Time
-	SlotMinutes int32
-	IsActive    bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type DoctorScheduleException struct {
-	ID            uuid.UUID
-	DoctorID      uuid.UUID
-	ExceptionDate time.Time
-	IsUnavailable bool
-	StartTime     pgtype.Time
-	EndTime       pgtype.Time
-	Reason        *string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+type AppointmentType struct {
+	ID              uuid.UUID
+	Name            string
+	DurationMinutes int32
+	Price           pgtype.Numeric
+	Color           *string
+	Icon            *string
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type IdempotencyKey struct {
@@ -83,73 +52,82 @@ type IdempotencyKey struct {
 	CreatedAt      time.Time
 }
 
-type Notification struct {
+type Profile struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	DisplayName string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ProfileRole struct {
+	ProfileID uuid.UUID
+	RoleID    uuid.UUID
+}
+
+type QueueEntry struct {
 	ID            uuid.UUID
 	AppointmentID *uuid.UUID
-	Channel       string
-	Recipient     string
-	Subject       *string
-	Body          string
+	ProfileID     uuid.UUID
 	Status        string
-	Attempts      int32
-	LastError     *string
-	NatsMsgID     *string
+	Priority      int32
+	CheckedInAt   time.Time
+	CalledAt      *time.Time
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
-type Patient struct {
-	ID                    uuid.UUID
-	UserID                *uuid.UUID
-	FullName              string
-	DateOfBirth           *time.Time
-	Gender                *string
-	Phone                 *string
-	Address               *string
-	EmergencyContactName  *string
-	EmergencyContactPhone *string
-	MedicalNotes          *string
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-}
-
-type Profile struct {
-	UserID    uuid.UUID
-	Role      string
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 type Role struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
+	ID   uuid.UUID
+	Name string
+}
+
+type RolePermission struct {
+	RoleID       uuid.UUID
+	PermissionID uuid.UUID
 }
 
 type Tenant struct {
 	ID        uuid.UUID
 	Name      string
 	Slug      string
-	IsActive  bool
+	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-type User struct {
+type TenantConfig struct {
 	ID           uuid.UUID
-	Email        string
-	PasswordHash string
-	FullName     string
-	Phone        *string
-	IsActive     bool
+	TenantID     uuid.UUID
+	Language     string
+	Timezone     string
+	OpeningHours json.RawMessage
+	Settings     json.RawMessage
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
-type UserRole struct {
-	UserID uuid.UUID
-	RoleID uuid.UUID
+type User struct {
+	ID           uuid.UUID
+	Phone        string
+	PasswordHash string
+	FullName     string
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type UserRefreshToken struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	TokenHash      string
+	ExpiresAt      time.Time
+	Revoked        bool
+	ReplacedByHash *string
+	CreatedAt      time.Time
 }
 
 type UserTenant struct {

@@ -16,8 +16,6 @@ const (
 	StatusNoShow    Status = "no_show"
 )
 
-// allowedTransitions implements BR-03/BR-04: explicit lifecycle with
-// validated transitions only.
 var allowedTransitions = map[Status][]Status{
 	StatusScheduled: {StatusConfirmed, StatusCancelled, StatusNoShow},
 	StatusConfirmed: {StatusCompleted, StatusCancelled, StatusNoShow},
@@ -43,13 +41,14 @@ type Appointment struct {
 	ID                 uuid.UUID  `json:"id"`
 	PatientID          uuid.UUID  `json:"patient_id"`
 	DoctorID           uuid.UUID  `json:"doctor_id"`
+	AppointmentTypeID  uuid.UUID  `json:"appointment_type_id"`
 	StartTime          time.Time  `json:"start_time"`
 	EndTime            time.Time  `json:"end_time"`
 	Status             Status     `json:"status"`
 	Notes              *string    `json:"notes,omitempty"`
 	CancellationReason *string    `json:"cancellation_reason,omitempty"`
 	Version            int32      `json:"version"`
-	CreatedBy          *uuid.UUID `json:"-"`
+	CreatedBy          uuid.UUID  `json:"-"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"-"`
 }
@@ -74,7 +73,7 @@ type CancelInput struct {
 
 type ListQuery struct {
 	PatientID string     `form:"patient_id"`
-	DoctorID  string     `json:"doctor_id" form:"doctor_id"`
+	DoctorID  string     `form:"doctor_id"`
 	Status    string     `form:"status" binding:"omitempty,oneof=scheduled confirmed completed cancelled no_show"`
 	From      *time.Time `form:"from" time_format:"2006-01-02T15:04:05Z07:00"`
 	To        *time.Time `form:"to" time_format:"2006-01-02T15:04:05Z07:00"`

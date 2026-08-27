@@ -7,24 +7,19 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"go.uber.org/zap"
 
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
 	auth "github.com/PandaX185/clinic-management/internal/auth"
-	doctor "github.com/PandaX185/clinic-management/internal/doctor"
-	notification "github.com/PandaX185/clinic-management/internal/notification"
-	patient "github.com/PandaX185/clinic-management/internal/patient"
 	server "github.com/PandaX185/clinic-management/internal/server"
+	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	"github.com/PandaX185/clinic-management/internal/platform/logger"
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
-	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
 	redisclient "github.com/PandaX185/clinic-management/internal/platform/redis"
-	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 )
 
 func main() {
@@ -43,7 +38,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	lg := newLogger(log)
+	lg := &loggerAdapter{log}
 	defer log.Sync()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -58,21 +53,6 @@ func run() error {
 	log.Info("connected to postgres")
 
 	rdb := tryRedis(ctx, cfg.RedisURL, log)
-	natsClient := tryNATS(ctx, cfg.NATSURL, log)
-
-	if natsClient != nil {
-		store := notification.NewPostgresStore(pool)
-		worker := notification.NewWorker(
-			natsClient.Jet,
-			notification.NewConsumer(store, notification.NewJetAdapter(natsClient.Jet), &notification.LogProvider{Logger: lg}, lg, 5*time.Second).Handle,
-			lg,
-		)
-		go func() {
-			if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				log.Error("notification worker stopped", zap.Error(err))
-			}
-		}()
-	}
 
 	m := metrics.New()
 
@@ -81,32 +61,13 @@ func run() error {
 	authSvc := auth.NewService(authRepo, tokens)
 	authHandler := auth.NewHandler(authSvc)
 
-	patientRepo := patient.NewPostgresRepository(pool)
-	patientSvc := patient.NewService(patientRepo)
-	patientHandler := patient.NewHandler(patientSvc)
-
-	doctorRepo := doctor.NewPostgresRepository(pool)
-	userBridge := newDoctorUserAdapter(authRepo, cfg.BcryptCost)
-	doctorSvc := doctor.NewService(doctorRepo, userBridge)
-	doctorHandler := doctor.NewHandler(doctorSvc)
-
-	apptRepo := appt.NewPostgresRepository(pool)
-
-	var eventForwarder appt.EventPublisher = noopPublisher{}
-	if natsClient != nil {
-		eventForwarder = notification.NewEventForwarder(notification.PublisherDeps{
-			JetPublisher: notification.NewJetAdapter(natsClient.Jet),
-			Store:        notification.NewPostgresStore(pool),
-		})
-	}
-
-	apptSvc := appt.NewServiceWithIdentity(apptRepo, eventForwarder, newAuditWriter(pool), appt.NewPostgresIdentityResolver(pool), cfg.IdempotencyTTL)
-	apptHandler := appt.NewHandler(apptSvc)
-
-	// Multi-tenant registry: tenants + per-tenant profile resolution.
 	tenantStore := tenant.NewPostgresStore(pool)
 	tenantSvc := tenant.NewService(tenantStore, tenant.NewScopedProfileStore(pool), tenantStore)
 	tenantHandler := tenant.NewHandler(tenantSvc)
+
+	aptRepo := appt.NewPostgresRepository(pool)
+	aptSvc := appt.NewServiceWithIdentity(aptRepo, nil, appt.NewPostgresIdentityResolver(pool), cfg.IdempotencyTTL)
+	aptHandler := appt.NewHandler(aptSvc)
 
 	router := server.NewRouter(server.RouterDeps{
 		Cfg:             cfg,
@@ -114,17 +75,12 @@ func run() error {
 		Logger:          lg,
 		AuthH:           authHandler,
 		AuthSvc:         authSvc,
-		PatientH:        patientHandler,
-		DoctorH:         doctorHandler,
-		AppointH:        apptHandler,
+		AppointH:        aptHandler,
 		TenantH:         tenantHandler,
 		TenantSvc:       tenantSvc,
 		ProfileResolver: tenant.NewScopedProfileStore(pool),
 		Metrics:         m,
 	})
-
-	health := server.NewHealth(cfg, pool, rdb, natsClient)
-	health.RegisterRoutes(router)
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", m.Handler())
@@ -144,12 +100,6 @@ func run() error {
 		errCh <- srv.ListenAndServe()
 	}()
 
-	// Periodically purge expired idempotency keys so the table cannot grow
-	// without bound (BR-07 hygiene).
-	idemCleaner := appt.NewIdempotencyCleaner(pool, cfg.IdempotencyTTL/2)
-	go idemCleaner.Run(ctx, log)
-	defer idemCleaner.Stop()
-
 	select {
 	case <-ctx.Done():
 		log.Info("shutdown signal received")
@@ -165,9 +115,7 @@ func run() error {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", zap.Error(err))
 	}
-	if natsClient != nil {
-		natsClient.Close()
-	}
+
 	if rdb != nil {
 		rdb.Close()
 	}
@@ -185,12 +133,38 @@ func tryRedis(ctx context.Context, url string, log *zap.Logger) *redisclient.Cli
 	return client
 }
 
-func tryNATS(ctx context.Context, url string, log *zap.Logger) *natsclient.Client {
-	client, err := natsclient.New(ctx, url)
-	if err != nil {
-		log.Warn("nats unavailable; notifications disabled", zap.Error(err))
-		return nil
-	}
-	log.Info("connected to nats")
-	return client
+// loggerAdapter adapts zap.Logger to the server.Logger interface.
+type loggerAdapter struct {
+	log *zap.Logger
 }
+
+func (l *loggerAdapter) Info(msg string, args ...any) {
+	fields := []zap.Field{}
+	for i := 0; i < len(args); i += 2 {
+		if k, ok := args[i].(string); ok {
+			fields = append(fields, zap.Any(k, args[i+1]))
+		}
+	}
+	l.log.Info(msg, fields...)
+}
+
+func (l *loggerAdapter) Warn(msg string, args ...any) {
+	fields := []zap.Field{}
+	for i := 0; i < len(args); i += 2 {
+		if k, ok := args[i].(string); ok {
+			fields = append(fields, zap.Any(k, args[i+1]))
+		}
+	}
+	l.log.Warn(msg, fields...)
+}
+
+func (l *loggerAdapter) Error(msg string, args ...any) {
+	fields := []zap.Field{}
+	for i := 0; i < len(args); i += 2 {
+		if k, ok := args[i].(string); ok {
+			fields = append(fields, zap.Any(k, args[i+1]))
+		}
+	}
+	l.log.Error(msg, fields...)
+}
+

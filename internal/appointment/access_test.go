@@ -50,12 +50,12 @@ func acFor(roles ...string) AccessContext {
 // SEC-02: patients can only touch their own appointments.
 func TestGetScoped_PatientCannotReadOthers(t *testing.T) {
 	ownPatient := uuid.New()
-	svc := NewServiceWithIdentity(fakeRepo{appt: testAppt(ownPatient, uuid.New())}, nil, nil,
+	svc := NewServiceWithIdentity(fakeRepo{appt: testAppt(ownPatient, uuid.New())}, nil,
 		fakeIdentity{patientID: ownPatient}, time.Minute)
 
 	other := testAppt(uuid.New(), uuid.New())
 	repo := fakeRepo{appt: other}
-	svc2 := NewServiceWithIdentity(repo, nil, nil, fakeIdentity{patientID: ownPatient}, time.Minute)
+	svc2 := NewServiceWithIdentity(repo, nil, fakeIdentity{patientID: ownPatient}, time.Minute)
 
 	_, err := svc2.GetScoped(context.Background(), other.ID, acFor("patient"))
 	if err == nil || apperr.HTTPStatus(apperr.From(err).Kind) != 403 {
@@ -71,7 +71,7 @@ func TestGetScoped_PatientCannotReadOthers(t *testing.T) {
 func TestGetScoped_DoctorScopedToOwnAppointments(t *testing.T) {
 	ownDoctor := uuid.New()
 	other := testAppt(uuid.New(), uuid.New())
-	svc := NewServiceWithIdentity(fakeRepo{appt: other}, nil, nil,
+	svc := NewServiceWithIdentity(fakeRepo{appt: other}, nil,
 		fakeIdentity{doctorID: ownDoctor}, time.Minute)
 
 	if _, err := svc.GetScoped(context.Background(), other.ID, acFor("doctor")); err == nil {
@@ -82,7 +82,7 @@ func TestGetScoped_DoctorScopedToOwnAppointments(t *testing.T) {
 func TestGetScoped_StaffAndAdminSeeEverything(t *testing.T) {
 	other := testAppt(uuid.New(), uuid.New())
 	for _, role := range []string{"staff", "admin"} {
-		svc := NewServiceWithIdentity(fakeRepo{appt: other}, nil, nil, fakeIdentity{}, time.Minute)
+		svc := NewServiceWithIdentity(fakeRepo{appt: other}, nil, fakeIdentity{}, time.Minute)
 		if _, err := svc.GetScoped(context.Background(), other.ID, acFor(role)); err != nil {
 			t.Fatalf("%s should access any appointment, got %v", role, err)
 		}
@@ -91,7 +91,7 @@ func TestGetScoped_StaffAndAdminSeeEverything(t *testing.T) {
 
 func TestGetScoped_UnlinkedUserDenied(t *testing.T) {
 	other := testAppt(uuid.New(), uuid.New())
-	svc := NewServiceWithIdentity(fakeRepo{appt: other}, nil, nil, fakeIdentity{}, time.Minute)
+	svc := NewServiceWithIdentity(fakeRepo{appt: other}, nil, fakeIdentity{}, time.Minute)
 	if _, err := svc.GetScoped(context.Background(), other.ID, acFor("patient")); err == nil {
 		t.Fatal("expected deny for patient with no linked profile")
 	}
@@ -101,7 +101,7 @@ func TestBookScoped_PatientForcedToOwnPatientID(t *testing.T) {
 	ownPatient := uuid.New()
 	var captured BookTxParams
 	repo := captureRepo{onBook: func(p BookTxParams) { captured = p }}
-	svc := NewServiceWithIdentity(repo, nil, nil, fakeIdentity{patientID: ownPatient}, time.Minute)
+	svc := NewServiceWithIdentity(repo, nil, fakeIdentity{patientID: ownPatient}, time.Minute)
 
 	in := BookInput{
 		PatientID:       uuid.NewString(), // attacker-supplied

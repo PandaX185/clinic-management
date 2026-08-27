@@ -12,7 +12,18 @@ import (
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 )
 
+// PoolProvider provides access to a pgx connection pool.
+type PoolProvider interface {
+	Pool() *pgxpool.Pool
+}
+
 var slugRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
+
+// ProfileResolver resolves user identities to domain profiles across tenants.
+type ProfileResolver interface {
+	PatientIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	DoctorIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+}
 
 type Tenant struct {
 	ID       uuid.UUID
@@ -29,7 +40,7 @@ type Store interface {
 	SetTenantActive(ctx context.Context, id uuid.UUID, active bool) error
 	TenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
 	AddStaffBinding(ctx context.Context, userID, tenantID uuid.UUID) error
-	PoolProvider
+	Pool() *pgxpool.Pool
 }
 
 // ProfileStore resolves per-tenant roles inside the active clinic's schema.
@@ -40,11 +51,6 @@ type ProfileStore interface {
 	EnsurePatientProfile(ctx context.Context, userID uuid.UUID) error
 }
 
-// PoolProvider supplies the raw pool for schema provisioning.
-type PoolProvider interface {
-	Pool() *pgxpool.Pool
-}
-
 type Service struct {
 	store   Store
 	profile ProfileStore
@@ -53,10 +59,6 @@ type Service struct {
 
 func NewService(store Store, profile ProfileStore, pool PoolProvider) *Service {
 	return &Service{store: store, profile: profile, pool: pool}
-}
-
-func normalizeSlug(s string) string {
-	return strings.ToLower(strings.TrimSpace(strings.ReplaceAll(s, " ", "_")))
 }
 
 // Create provisions a new clinic: tenants row + physical schema.
@@ -123,4 +125,8 @@ func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID) err
 		return apperr.Invalid("tenant is not active")
 	}
 	return s.store.AddStaffBinding(ctx, userID, tenantID)
+}
+
+func normalizeSlug(s string) string {
+	return strings.ToLower(strings.TrimSpace(strings.ReplaceAll(s, " ", "_")))
 }

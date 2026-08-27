@@ -12,40 +12,39 @@ import (
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
 
-type AuditEntry struct {
-	ActorID    *uuid.UUID
-	Action     string
-	EntityID   uuid.UUID
-	EntityType string
-	Details    []byte
+// transitionParams defines the parameters for a state transition.
+type transitionParams struct {
+	id                 uuid.UUID
+	expectedStatus     Status
+	newStatus          Status
+	cancellationReason *string
+	startTime          *time.Time
+	endTime            *time.Time
+	reschedule         bool
 }
 
-type AuditWriter interface {
-	Write(ctx context.Context, entry AuditEntry) error
-}
-
+// Service is the appointment service with role-scoped access enforcement (SEC-02).
 type Service struct {
 	repo      Repository
 	publisher EventPublisher
-	audit     AuditWriter
 	identity  IdentityResolver
 	ttlSecs   int
 }
 
-func NewService(repo Repository, publisher EventPublisher, audit AuditWriter, idempotencyTTL time.Duration) *Service {
-	return NewServiceWithIdentity(repo, publisher, audit, nil, idempotencyTTL)
+// NewService creates a Service with the given dependencies.
+func NewService(repo Repository, publisher EventPublisher, identity IdentityResolver, ttl time.Duration) *Service {
+	return NewServiceWithIdentity(repo, publisher, identity, ttl)
 }
 
 // NewServiceWithIdentity allows injecting an IdentityResolver for role-scoped
 // access enforcement. A nil resolver disables scoping (tests only).
-func NewServiceWithIdentity(repo Repository, publisher EventPublisher, audit AuditWriter, identity IdentityResolver, idempotencyTTL time.Duration) *Service {
-	return &Service{repo: repo, publisher: publisher, audit: audit, identity: identity, ttlSecs: int(idempotencyTTL.Seconds())}
+func NewServiceWithIdentity(repo Repository, publisher EventPublisher, identity IdentityResolver, idempotencyTTL time.Duration) *Service {
+	return &Service{repo: repo, publisher: publisher, identity: identity, ttlSecs: int(idempotencyTTL.Seconds())}
 }
 
 // Book creates an appointment safely under concurrency. The repository runs
-// the whole flow in a single transaction; only after commit do we publish the
-// notification event and write the audit entry (best-effort, non-blocking for
-// correctness of the booking itself).
+// the whole flow in a single transaction; after commit we publish the
+// notification event.
 func (s *Service) Book(ctx context.Context, in BookInput, actorID *uuid.UUID) (BookingResult, error) {
 	patientID, err := uuid.Parse(in.PatientID)
 	if err != nil {
@@ -81,14 +80,6 @@ func (s *Service) Book(ctx context.Context, in BookInput, actorID *uuid.UUID) (B
 			Appointment: *result.Appointment,
 		})
 	}
-	if result.Appointment != nil && s.audit != nil {
-		s.audit.Write(ctx, AuditEntry{
-			ActorID:    actorID,
-			Action:     "appointment.booked",
-			EntityID:   result.Appointment.ID,
-			EntityType: "appointment",
-		})
-	}
 	return result, nil
 }
 
@@ -108,6 +99,7 @@ func (s *Service) BookScoped(ctx context.Context, in BookInput, ac AccessContext
 	return s.Book(ctx, in, ac.ActorID)
 }
 
+// Get retrieves an appointment by ID.
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (*Appointment, error) {
 	return s.repo.GetByID(ctx, id)
 }
@@ -128,6 +120,7 @@ func (s *Service) GetScoped(ctx context.Context, id uuid.UUID, ac AccessContext)
 	return appt, nil
 }
 
+// List returns a paginated list of appointments.
 func (s *Service) List(ctx context.Context, q ListQuery) ([]Appointment, int64, error) {
 	if q.Limit == 0 {
 		q.Limit = 20
@@ -136,8 +129,6 @@ func (s *Service) List(ctx context.Context, q ListQuery) ([]Appointment, int64, 
 }
 
 // ListScoped forces the caller's own patient/doctor filter onto a listing.
-// Privileged actors may pass arbitrary filters; patients and doctors cannot
-// enumerate appointments that are not theirs (SEC-02).
 func (s *Service) ListScoped(ctx context.Context, q ListQuery, ac AccessContext) ([]Appointment, int64, error) {
 	if q.Limit == 0 {
 		q.Limit = 20
@@ -168,7 +159,7 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID, reason string, actor
 	return s.cancelAuthorized(ctx, id, reason, actorID, current)
 }
 
-// CancelScoped additionally enforces role-based ownership before cancelling.
+// CancelScoped enforces role-based ownership before cancelling.
 func (s *Service) CancelScoped(ctx context.Context, id uuid.UUID, reason string, ac AccessContext) (*Appointment, error) {
 	appt, err := s.authorizeMutation(ctx, id, ac)
 	if err != nil {
@@ -177,17 +168,18 @@ func (s *Service) CancelScoped(ctx context.Context, id uuid.UUID, reason string,
 	return s.cancelAuthorized(ctx, id, reason, ac.ActorID, appt)
 }
 
+// cancelAuthorized performs the cancellation and emits events.
 func (s *Service) cancelAuthorized(ctx context.Context, id uuid.UUID, reason string, actorID *uuid.UUID, current *Appointment) (*Appointment, error) {
 	if !CanTransition(current.Status, StatusCancelled) {
 		return nil, apperr.Conflict("cannot cancel an appointment in status " + string(current.Status))
 	}
 
-	reasonCopy := reason
+	re := reason
 	updated, err := s.transition(ctx, transitionParams{
 		id:                 id,
 		expectedStatus:     current.Status,
 		newStatus:          StatusCancelled,
-		cancellationReason: &reasonCopy,
+		cancellationReason: &re,
 	})
 	if err != nil {
 		return nil, err
@@ -196,20 +188,10 @@ func (s *Service) cancelAuthorized(ctx context.Context, id uuid.UUID, reason str
 	if s.publisher != nil {
 		s.publisher.PublishAppointmentEvent(ctx, Event{Type: "appointment.cancelled", Appointment: *updated})
 	}
-	if s.audit != nil {
-		s.audit.Write(ctx, AuditEntry{
-			ActorID:    actorID,
-			Action:     "appointment.cancelled",
-			EntityID:   id,
-			EntityType: "appointment",
-			Details:    marshalDetails(map[string]string{"reason": reason}),
-		})
-	}
 	return updated, nil
 }
 
-// authorizeMutation loads the appointment and verifies the actor may mutate
-// it (SEC-02). Doctors may manage their own appointments; patients their own.
+// authorizeMutation loads the appointment and verifies the actor may mutate it (SEC-02).
 func (s *Service) authorizeMutation(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
 	appt, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -225,9 +207,8 @@ func (s *Service) authorizeMutation(ctx context.Context, id uuid.UUID, ac Access
 	return appt, nil
 }
 
-// Reschedule moves an active appointment to a new time window. The DB
+// RescheduleScoped moves an active appointment to a new time window. The DB
 // exclusion constraint rejects collisions introduced by the new range.
-// RescheduleScoped enforces ownership before rescheduling.
 func (s *Service) RescheduleScoped(ctx context.Context, id uuid.UUID, in RescheduleInput, ac AccessContext) (*Appointment, error) {
 	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
 		return nil, err
@@ -235,6 +216,7 @@ func (s *Service) RescheduleScoped(ctx context.Context, id uuid.UUID, in Resched
 	return s.Reschedule(ctx, id, in, ac.ActorID)
 }
 
+// Reschedule moves an active appointment to a new time window.
 func (s *Service) Reschedule(ctx context.Context, id uuid.UUID, in RescheduleInput, actorID *uuid.UUID) (*Appointment, error) {
 	current, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -265,30 +247,25 @@ func (s *Service) Reschedule(ctx context.Context, id uuid.UUID, in RescheduleInp
 	if s.publisher != nil {
 		s.publisher.PublishAppointmentEvent(ctx, Event{Type: "appointment.rescheduled", Appointment: *updated})
 	}
-	if s.audit != nil {
-		s.audit.Write(ctx, AuditEntry{
-			ActorID:    actorID,
-			Action:     "appointment.rescheduled",
-			EntityID:   id,
-			EntityType: "appointment",
-		})
-	}
 	return updated, nil
 }
 
+// Confirm confirms an appointment.
 func (s *Service) Confirm(ctx context.Context, id uuid.UUID, actorID *uuid.UUID) (*Appointment, error) {
 	return s.simpleTransition(ctx, id, StatusConfirmed, "appointment.confirmed", actorID)
 }
 
+// Complete marks an appointment as completed.
 func (s *Service) Complete(ctx context.Context, id uuid.UUID, actorID *uuid.UUID) (*Appointment, error) {
 	return s.simpleTransition(ctx, id, StatusCompleted, "appointment.completed", actorID)
 }
 
+// MarkNoShow marks an appointment as a no-show.
 func (s *Service) MarkNoShow(ctx context.Context, id uuid.UUID, actorID *uuid.UUID) (*Appointment, error) {
 	return s.simpleTransition(ctx, id, StatusNoShow, "appointment.no_show", actorID)
 }
 
-// Simple transitions with ownership enforcement (SEC-02).
+// ConfirmScoped confirms an appointment with role-based access.
 func (s *Service) ConfirmScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
 	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
 		return nil, err
@@ -296,6 +273,7 @@ func (s *Service) ConfirmScoped(ctx context.Context, id uuid.UUID, ac AccessCont
 	return s.simpleTransition(ctx, id, StatusConfirmed, "appointment.confirmed", ac.ActorID)
 }
 
+// CompleteScoped completes an appointment with role-based access.
 func (s *Service) CompleteScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
 	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
 		return nil, err
@@ -303,6 +281,7 @@ func (s *Service) CompleteScoped(ctx context.Context, id uuid.UUID, ac AccessCon
 	return s.simpleTransition(ctx, id, StatusCompleted, "appointment.completed", ac.ActorID)
 }
 
+// MarkNoShowScoped marks an appointment as a no-show with role-based access.
 func (s *Service) MarkNoShowScoped(ctx context.Context, id uuid.UUID, ac AccessContext) (*Appointment, error) {
 	if _, err := s.authorizeMutation(ctx, id, ac); err != nil {
 		return nil, err
@@ -310,11 +289,7 @@ func (s *Service) MarkNoShowScoped(ctx context.Context, id uuid.UUID, ac AccessC
 	return s.simpleTransition(ctx, id, StatusNoShow, "appointment.no_show", ac.ActorID)
 }
 
-type simpleSpec struct {
-	target Status
-	action string
-}
-
+// transition performs a state transition on an appointment.
 func (s *Service) transition(ctx context.Context, p transitionParams) (*Appointment, error) {
 	params := TransitionParams{
 		ID:             p.id,
@@ -332,16 +307,7 @@ func (s *Service) transition(ctx context.Context, p transitionParams) (*Appointm
 	return s.repo.Transition(ctx, params)
 }
 
-type transitionParams struct {
-	id                 uuid.UUID
-	expectedStatus     Status
-	newStatus          Status
-	cancellationReason *string
-	startTime          *time.Time
-	endTime            *time.Time
-	reschedule         bool
-}
-
+// simpleTransition performs a state transition with ownership enforcement.
 func (s *Service) simpleTransition(ctx context.Context, id uuid.UUID, target Status, action string, actorID *uuid.UUID) (*Appointment, error) {
 	current, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -358,31 +324,25 @@ func (s *Service) simpleTransition(ctx context.Context, id uuid.UUID, target Sta
 	if err != nil {
 		return nil, err
 	}
-	if s.audit != nil {
-		s.audit.Write(ctx, AuditEntry{
-			ActorID:    actorID,
-			Action:     action,
-			EntityID:   id,
-			EntityType: "appointment",
-		})
+	if s.publisher != nil {
+		s.publisher.PublishAppointmentEvent(ctx, Event{Type: action, Appointment: *updated})
 	}
 	return updated, nil
 }
 
+// hashRequest computes a SHA-256 hash of the booking request for idempotency.
 func hashRequest(in BookInput) string {
 	h := sha256.New()
-	h.Write([]byte(in.PatientID))
-	h.Write([]byte(in.DoctorID))
-	h.Write([]byte(in.StartTime.Format(time.RFC3339Nano)))
+	_, _ = h.Write([]byte(in.PatientID))
+	_, _ = h.Write([]byte(in.DoctorID))
+	_, _ = h.Write([]byte(in.StartTime.Format(time.RFC3339Nano)))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// marshalDetails marshals details for audit (no-op in v2).
 func marshalDetails(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
-		// Structured values here are plain maps of strings; this cannot
-		// realistically fail. Fall back to a valid empty JSON object so the
-		// audit row's details column never receives malformed JSON.
 		return []byte(`{}`)
 	}
 	return b

@@ -11,78 +11,76 @@ import (
 	"github.com/google/uuid"
 )
 
-const assignUserRole = `-- name: AssignUserRole :exec
-INSERT INTO user_roles (user_id, role_id)
-VALUES ($1, (SELECT id FROM roles WHERE name = $2))
-ON CONFLICT DO NOTHING
+const addUserTenant = `-- name: AddUserTenant :one
+
+INSERT INTO user_tenants (user_id, tenant_id)
+VALUES ($1, $2)
+ON CONFLICT (user_id, tenant_id) DO NOTHING
+RETURNING id, user_id, tenant_id, is_active, created_at
 `
 
-type AssignUserRoleParams struct {
-	UserID uuid.UUID
-	Name   string
+type AddUserTenantParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
 }
 
-func (q *Queries) AssignUserRole(ctx context.Context, arg AssignUserRoleParams) error {
-	_, err := q.db.Exec(ctx, assignUserRole, arg.UserID, arg.Name)
-	return err
+// Staff bindings ---
+func (q *Queries) AddUserTenant(ctx context.Context, arg AddUserTenantParams) (UserTenant, error) {
+	row := q.db.QueryRow(ctx, addUserTenant, arg.UserID, arg.TenantID)
+	var i UserTenant
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TenantID,
+		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password_hash, full_name, phone)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, password_hash, full_name, phone, is_active, created_at, updated_at
+INSERT INTO users (phone, password_hash, full_name)
+VALUES ($1, $2, $3)
+RETURNING id, phone, password_hash, full_name, status, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Email        string
+	Phone        string
 	PasswordHash string
 	FullName     string
-	Phone        *string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Email,
-		arg.PasswordHash,
-		arg.FullName,
-		arg.Phone,
-	)
+	row := q.db.QueryRow(ctx, createUser, arg.Phone, arg.PasswordHash, arg.FullName)
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Phone,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Phone,
-		&i.IsActive,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, full_name, phone, is_active, created_at, updated_at FROM users WHERE email = $1
+const deactivateUserTenant = `-- name: DeactivateUserTenant :exec
+UPDATE user_tenants SET is_active = false WHERE user_id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, email)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FullName,
-		&i.Phone,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+type DeactivateUserTenantParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) DeactivateUserTenant(ctx context.Context, arg DeactivateUserTenantParams) error {
+	_, err := q.db.Exec(ctx, deactivateUserTenant, arg.UserID, arg.TenantID)
+	return err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, full_name, phone, is_active, created_at, updated_at FROM users WHERE id = $1
+SELECT id, phone, password_hash, full_name, status, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -90,39 +88,80 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Phone,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Phone,
-		&i.IsActive,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const listUserRoles = `-- name: ListUserRoles :many
-SELECT r.name FROM roles r
-JOIN user_roles ur ON ur.role_id = r.id
-WHERE ur.user_id = $1
+const getUserByPhone = `-- name: GetUserByPhone :one
+
+SELECT id, phone, password_hash, full_name, status, created_at, updated_at FROM users WHERE phone = $1
 `
 
-func (q *Queries) ListUserRoles(ctx context.Context, userID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, listUserRoles, userID)
+// Auth (schema v2: phone-only identity)
+func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByPhone, phone)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listTenantsForUser = `-- name: ListTenantsForUser :many
+SELECT t.id, t.name, t.slug, t.status, t.created_at, t.updated_at FROM tenants t
+JOIN user_tenants ut ON ut.tenant_id = t.id
+WHERE ut.user_id = $1 AND ut.is_active = true AND t.status = 'active'
+`
+
+func (q *Queries) ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
+	rows, err := q.db.Query(ctx, listTenantsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []Tenant{}
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, name)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUserStatus = `-- name: UpdateUserStatus :exec
+UPDATE users SET status = $2 WHERE id = $1
+`
+
+type UpdateUserStatusParams struct {
+	ID     uuid.UUID
+	Status string
+}
+
+func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error {
+	_, err := q.db.Exec(ctx, updateUserStatus, arg.ID, arg.Status)
+	return err
 }

@@ -42,6 +42,8 @@ type BookTxParams struct {
 	CreatedBy   *uuid.UUID
 	RequestHash string
 	TTLSeconds  int
+	// AppointmentTypeID is optional; if omitted, a default type is used.
+	AppointmentTypeID *uuid.UUID
 }
 
 type BookingResult struct {

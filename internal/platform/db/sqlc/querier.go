@@ -11,63 +11,36 @@ import (
 )
 
 type Querier interface {
-	// Staff/doctor binding so the clinic appears in the user's tenant list.
+	// Staff bindings ---
 	AddUserTenant(ctx context.Context, arg AddUserTenantParams) (UserTenant, error)
-	AssignUserRole(ctx context.Context, arg AssignUserRoleParams) error
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
-	CountPatients(ctx context.Context, search string) (int64, error)
+	// Appointments (schema v2: profile-based, typed, queue-ready)
 	CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error)
-	CreateDoctor(ctx context.Context, arg CreateDoctorParams) (Doctor, error)
-	CreateDoctorSchedule(ctx context.Context, arg CreateDoctorScheduleParams) (DoctorSchedule, error)
-	CreatePatient(ctx context.Context, arg CreatePatientParams) (Patient, error)
-	CreateScheduleException(ctx context.Context, arg CreateScheduleExceptionParams) (DoctorScheduleException, error)
+	// Tenants (global registry) — schema v2
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	DeactivateDoctorSchedule(ctx context.Context, id uuid.UUID) error
+	DeactivateUserTenant(ctx context.Context, arg DeactivateUserTenantParams) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
-	DeletePatient(ctx context.Context, id uuid.UUID) (int64, error)
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
-	GetDoctorByID(ctx context.Context, id uuid.UUID) (GetDoctorByIDRow, error)
-	GetDoctorIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
-	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (GetIdempotentResponseRow, error)
-	GetNotificationByMsgID(ctx context.Context, natsMsgID *string) (Notification, error)
-	GetPatientByID(ctx context.Context, id uuid.UUID) (Patient, error)
-	// Resolve the notification recipient: prefer the linked user account's
-	// email, fall back to the patients.phone column only for SMS later.
-	GetPatientContactEmail(ctx context.Context, id uuid.UUID) (*string, error)
-	GetPatientIDByUserID(ctx context.Context, userID *uuid.UUID) (uuid.UUID, error)
-	// GetProfileForTenant / UpsertPatientProfile live in profile.sql and run
-	// with search_path pinned to the active tenant schema.
-	GetProfileForTenant(ctx context.Context, userID uuid.UUID) (GetProfileForTenantRow, error)
+	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
+	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
+	GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
 	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
-	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
-	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
-	// DO UPDATE ... WHERE false + RETURNING: concurrent inserts of the same key
-	// serialize; the loser gets the winner's row back instead of silently
-	// committing a duplicate booking.
-	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) (string, error)
-	InsertNotification(ctx context.Context, arg InsertNotificationParams) (Notification, error)
-	ListActiveAppointmentsForDoctorInRange(ctx context.Context, arg ListActiveAppointmentsForDoctorInRangeParams) ([]Appointment, error)
+	// Auth (schema v2: phone-only identity)
+	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error
+	ListAppointmentTypes(ctx context.Context) ([]AppointmentType, error)
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)
-	ListDoctorSchedules(ctx context.Context, doctorID uuid.UUID) ([]DoctorSchedule, error)
-	ListDoctors(ctx context.Context, arg ListDoctorsParams) ([]ListDoctorsRow, error)
-	ListScheduleExceptions(ctx context.Context, arg ListScheduleExceptionsParams) ([]DoctorScheduleException, error)
 	ListTenants(ctx context.Context) ([]Tenant, error)
-	// Clinics where the user holds a staff/doctor binding. Patients browse all
-	// active tenants and need no binding to act inside one.
 	ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
-	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]string, error)
-	MarkNotificationDead(ctx context.Context, arg MarkNotificationDeadParams) error
-	MarkNotificationFailed(ctx context.Context, arg MarkNotificationFailedParams) error
-	MarkNotificationSent(ctx context.Context, id uuid.UUID) error
+	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]Role, error)
 	RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error)
-	SearchPatients(ctx context.Context, arg SearchPatientsParams) ([]Patient, error)
 	SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
-	UpdatePatient(ctx context.Context, arg UpdatePatientParams) (Patient, error)
-	UpsertPatientProfile(ctx context.Context, userID uuid.UUID) (UpsertPatientProfileRow, error)
+	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
+	UpsertPatientProfile(ctx context.Context, arg UpsertPatientProfileParams) (Profile, error)
 }
 
 var _ Querier = (*Queries)(nil)

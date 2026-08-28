@@ -52,6 +52,12 @@ type IdempotencyKey struct {
 	CreatedAt      time.Time
 }
 
+type Permission struct {
+	ID          uuid.UUID
+	Name        string
+	Description pgtype.Text
+}
+
 type Profile struct {
 	ID          uuid.UUID
 	UserID      uuid.UUID
@@ -81,8 +87,9 @@ type QueueEntry struct {
 }
 
 type Role struct {
-	ID   uuid.UUID
-	Name string
+	ID          uuid.UUID
+	Name        string
+	Description pgtype.Text
 }
 
 type RolePermission struct {
@@ -128,12 +135,4 @@ type UserRefreshToken struct {
 	Revoked        bool
 	ReplacedByHash *string
 	CreatedAt      time.Time
-}
-
-type UserTenant struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	TenantID  uuid.UUID
-	IsActive  bool
-	CreatedAt time.Time
 }

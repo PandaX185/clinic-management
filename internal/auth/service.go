@@ -2,12 +2,15 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
@@ -41,6 +44,17 @@ type Service struct {
 
 func NewService(repo Repository, tokens *TokenManager) *Service {
 	return &Service{repo: repo, tokens: tokens}
+}
+
+// ListTenants returns all tenants the user belongs to, with their role in each.
+func (s *Service) ListTenants(ctx context.Context, userID uuid.UUID) ([]UserTenant, error) {
+	return s.repo.ListTenantsForUser(ctx, userID)
+}
+
+// HashRefreshToken converts a raw refresh token to a SHA-256 hash for DB storage.
+func HashRefreshToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
 }
 
 // Issue generates a new token pair for a user (no roles in JWT; resolved per-request via tenant).
@@ -108,7 +122,7 @@ func (s *Service) ParseAccessToken(token string) (*Claims, error) {
 	return s.tokens.Parse(token, TokenTypeAccess)
 }
 
-// Login authenticates a user and returns a token pair.
+// Login authenticates a user and returns a token pair with refresh token stored.
 func (s *Service) Login(ctx context.Context, in LoginInput) (*TokenPair, error) {
 	user, err := s.repo.GetUserByPhone(ctx, normalizePhone(in.Phone))
 	if err != nil {
@@ -120,7 +134,18 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*TokenPair, error) 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(in.Password)); err != nil {
 		return nil, apperr.Unauthorized("invalid credentials")
 	}
-	return s.tokens.Issue(user)
+
+	pair, err := s.tokens.Issue(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store the hashed refresh token for validation/revocation
+	expiry := time.Now().Add(s.tokens.refreshTTL)
+	if err := s.repo.StoreRefreshToken(ctx, user.ID, HashRefreshToken(pair.RefreshToken), expiry); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return pair, nil
 }
 
 // Me returns the authenticated user's profile.
@@ -135,12 +160,23 @@ func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-// Refresh exchanges a refresh token for a new token pair.
+// Refresh exchanges a refresh token for a new access token pair.
+// The old token is validated against the DB and then revoked (rotated).
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
 	claims, err := s.tokens.Parse(refreshToken, TokenTypeRefresh)
 	if err != nil {
 		return nil, apperr.Unauthorized("invalid or expired refresh token")
 	}
+
+	// Validate the refresh token against the database
+	tokenHash := HashRefreshToken(refreshToken)
+	if err := s.repo.ValidateRefreshToken(ctx, claims.UserID, tokenHash); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperr.Unauthorized("refresh token was revoked or doesn't exist")
+		}
+		return nil, apperr.Unauthorized("refresh token validation failed")
+	}
+
 	user, err := s.repo.GetUserByID(ctx, claims.UserID)
 	if err != nil {
 		return nil, err
@@ -148,10 +184,41 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 	if !user.IsActive {
 		return nil, apperr.Unauthorized("account is deactivated")
 	}
-	return s.tokens.Issue(user)
+
+	// Revoke old token (rotation)
+	if err := s.repo.DeleteRefreshToken(ctx, claims.UserID, tokenHash); err != nil {
+		return nil, apperr.Internal(err)
+	}
+
+	// Issue new pair
+	pair, err := s.tokens.Issue(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store new refresh token
+	expiry := time.Now().Add(s.tokens.refreshTTL)
+	if err := s.repo.StoreRefreshToken(ctx, user.ID, HashRefreshToken(pair.RefreshToken), expiry); err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return pair, nil
 }
 
-// Register creates a new patient account (phone-only auth).
+// Logout revokes a refresh token.
+func (s *Service) Logout(ctx context.Context, refreshToken string) error {
+	claims, err := s.tokens.Parse(refreshToken, TokenTypeRefresh)
+	if err != nil {
+		return apperr.Unauthorized("invalid or expired refresh token")
+	}
+
+	tokenHash := HashRefreshToken(refreshToken)
+	if err := s.repo.DeleteRefreshToken(ctx, claims.UserID, tokenHash); err != nil {
+		return apperr.Internal(err)
+	}
+	return nil
+}
+
+// Register creates a new user account and returns a token pair.
 func (s *Service) Register(ctx context.Context, in RegisterInput) (*User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {

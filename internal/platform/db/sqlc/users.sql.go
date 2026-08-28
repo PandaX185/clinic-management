@@ -7,36 +7,10 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
-
-const addUserTenant = `-- name: AddUserTenant :one
-
-INSERT INTO user_tenants (user_id, tenant_id)
-VALUES ($1, $2)
-ON CONFLICT (user_id, tenant_id) DO NOTHING
-RETURNING id, user_id, tenant_id, is_active, created_at
-`
-
-type AddUserTenantParams struct {
-	UserID   uuid.UUID
-	TenantID uuid.UUID
-}
-
-// Staff bindings ---
-func (q *Queries) AddUserTenant(ctx context.Context, arg AddUserTenantParams) (UserTenant, error) {
-	row := q.db.QueryRow(ctx, addUserTenant, arg.UserID, arg.TenantID)
-	var i UserTenant
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TenantID,
-		&i.IsActive,
-		&i.CreatedAt,
-	)
-	return i, err
-}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (phone, password_hash, full_name)
@@ -65,17 +39,18 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const deactivateUserTenant = `-- name: DeactivateUserTenant :exec
-UPDATE user_tenants SET is_active = false WHERE user_id = $1 AND tenant_id = $2
+const deleteRefreshToken = `-- name: DeleteRefreshToken :exec
+DELETE FROM user_refresh_tokens
+WHERE user_id = $1 AND token_hash = $2
 `
 
-type DeactivateUserTenantParams struct {
-	UserID   uuid.UUID
-	TenantID uuid.UUID
+type DeleteRefreshTokenParams struct {
+	UserID    uuid.UUID
+	TokenHash string
 }
 
-func (q *Queries) DeactivateUserTenant(ctx context.Context, arg DeactivateUserTenantParams) error {
-	_, err := q.db.Exec(ctx, deactivateUserTenant, arg.UserID, arg.TenantID)
+func (q *Queries) DeleteRefreshToken(ctx context.Context, arg DeleteRefreshTokenParams) error {
+	_, err := q.db.Exec(ctx, deleteRefreshToken, arg.UserID, arg.TokenHash)
 	return err
 }
 
@@ -119,37 +94,26 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 	return i, err
 }
 
-const listTenantsForUser = `-- name: ListTenantsForUser :many
-SELECT t.id, t.name, t.slug, t.status, t.created_at, t.updated_at FROM tenants t
-JOIN user_tenants ut ON ut.tenant_id = t.id
-WHERE ut.user_id = $1 AND ut.is_active = true AND t.status = 'active'
+const insertRefreshToken = `-- name: InsertRefreshToken :exec
+
+INSERT INTO user_refresh_tokens (user_id, token_hash, expires_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE SET
+    token_hash = EXCLUDED.token_hash,
+    expires_at = EXCLUDED.expires_at,
+    revoked = false
 `
 
-func (q *Queries) ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
-	rows, err := q.db.Query(ctx, listTenantsForUser, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Tenant{}
-	for rows.Next() {
-		var i Tenant
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Slug,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type InsertRefreshTokenParams struct {
+	UserID    uuid.UUID
+	TokenHash string
+	ExpiresAt time.Time
+}
+
+// Refresh tokens (hashed storage for validation/revocation)
+func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error {
+	_, err := q.db.Exec(ctx, insertRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	return err
 }
 
 const updateUserStatus = `-- name: UpdateUserStatus :exec
@@ -164,4 +128,21 @@ type UpdateUserStatusParams struct {
 func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error {
 	_, err := q.db.Exec(ctx, updateUserStatus, arg.ID, arg.Status)
 	return err
+}
+
+const validateRefreshToken = `-- name: ValidateRefreshToken :one
+SELECT expires_at FROM user_refresh_tokens
+WHERE user_id = $1 AND token_hash = $2 AND revoked = false AND expires_at > now()
+`
+
+type ValidateRefreshTokenParams struct {
+	UserID    uuid.UUID
+	TokenHash string
+}
+
+func (q *Queries) ValidateRefreshToken(ctx context.Context, arg ValidateRefreshTokenParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, validateRefreshToken, arg.UserID, arg.TokenHash)
+	var expires_at time.Time
+	err := row.Scan(&expires_at)
+	return expires_at, err
 }

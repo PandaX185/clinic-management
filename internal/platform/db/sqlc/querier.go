@@ -6,21 +6,20 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Querier interface {
-	// Staff bindings ---
-	AddUserTenant(ctx context.Context, arg AddUserTenantParams) (UserTenant, error)
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
 	// Appointments (schema v2: profile-based, typed, queue-ready)
 	CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error)
 	// Tenants (global registry) — schema v2
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	DeactivateUserTenant(ctx context.Context, arg DeactivateUserTenantParams) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
+	DeleteRefreshToken(ctx context.Context, arg DeleteRefreshTokenParams) error
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
 	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
@@ -31,16 +30,18 @@ type Querier interface {
 	// Auth (schema v2: phone-only identity)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error
+	// Refresh tokens (hashed storage for validation/revocation)
+	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	ListAppointmentTypes(ctx context.Context) ([]AppointmentType, error)
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)
 	ListTenants(ctx context.Context) ([]Tenant, error)
-	ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
-	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]Role, error)
+	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]ListUserRolesRow, error)
 	RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error)
 	SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
 	UpsertPatientProfile(ctx context.Context, arg UpsertPatientProfileParams) (Profile, error)
+	ValidateRefreshToken(ctx context.Context, arg ValidateRefreshTokenParams) (time.Time, error)
 }
 
 var _ Querier = (*Queries)(nil)

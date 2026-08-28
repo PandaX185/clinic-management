@@ -24,11 +24,13 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		g.POST("/register", h.Register)
 		g.POST("/login", h.Login)
 		g.POST("/refresh", h.Refresh)
+		g.POST("/logout", h.Logout)
 	}
 }
 
 func (h *Handler) RegisterProtectedRoutes(g *gin.RouterGroup) {
 	g.GET("/me", h.Me)
+	g.GET("/tenants", h.ListTenants)
 }
 
 // Register
@@ -77,6 +79,60 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, pair)
+}
+
+// Logout revokes the given refresh token.
+//
+// @Summary Logout
+// @Description Revokes the given refresh token. The user must provide a valid refresh token.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body object true "Refresh token" example:{"refresh_token":"<token>"}
+// @Success 204 "No Content"
+// @Router /auth/logout [post]
+func (h *Handler) Logout(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(apperr.Invalid("refresh_token is required"))
+		return
+	}
+	if err := h.svc.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+		c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ListTenants returns all tenants that the current user has a profile in.
+//
+// @Summary List user's tenants
+// @Description Returns all tenants associated with the current user, with their role in each.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} UserTenant
+// @Router /auth/tenants [get]
+func (h *Handler) ListTenants(c *gin.Context) {
+	uid, ok := c.Get("auth_user_id")
+	if !ok {
+		c.Error(apperr.Unauthorized("missing identity"))
+		return
+	}
+	userID, err := uuid.Parse(uid.(string))
+	if err != nil {
+		c.Error(apperr.Invalid("invalid user id"))
+		return
+	}
+	tenants, err := h.svc.ListTenants(c.Request.Context(), userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, tenants)
 }
 
 // Refresh

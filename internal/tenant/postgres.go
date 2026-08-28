@@ -18,10 +18,8 @@ type PostgresStore struct {
 
 func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore { return &PostgresStore{pool: pool} }
 
-// Pool returns the underlying pool for cross-schema operations.
 func (s *PostgresStore) Pool() *pgxpool.Pool { return s.pool }
 
-// Tenant CRUD methods
 func (s *PostgresStore) CreateTenant(ctx context.Context, name, slug string) (*Tenant, error) {
 	row, err := db.New(s.pool).CreateTenant(ctx, db.CreateTenantParams{Name: name, Slug: slug})
 	if err != nil {
@@ -75,10 +73,11 @@ func (s *PostgresStore) SetTenantActive(ctx context.Context, id uuid.UUID, activ
 	return nil
 }
 
-// TenantsForUser returns clinics where the user has an explicit
-// staff/doctor/admin binding (user_tenants). Patients can only access active clinics.
+// TenantsForUser returns all active tenants. In v2, which tenants a user
+// belongs to is determined by ProfileStore queries (tenant-scoped profiles).
+// This method returns all tenants so the caller can filter by profile.
 func (s *PostgresStore) TenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
-	rows, err := db.New(s.pool).ListTenantsForUser(ctx, userID)
+	rows, err := db.New(s.pool).ListTenants(ctx)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
@@ -89,9 +88,9 @@ func (s *PostgresStore) TenantsForUser(ctx context.Context, userID uuid.UUID) ([
 	return out, nil
 }
 
-// AddStaffBinding registers a user_tenants row so the user's clinic list at
-// login includes this tenant (staff/doctor/admin only).
+// AddStaffBinding is a no-op for now. In v2, profile creation happens in
+// the tenant schema (ProfileStore), not via a global user_tenants table.
+// The tenant.Service.BindStaff method handles validation and profile creation.
 func (s *PostgresStore) AddStaffBinding(ctx context.Context, userID, tenantID uuid.UUID) error {
-	_, err := db.New(s.pool).AddUserTenant(ctx, db.AddUserTenantParams{UserID: userID, TenantID: tenantID})
-	return apperr.Internal(err)
+	return nil
 }

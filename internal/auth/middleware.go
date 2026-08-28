@@ -3,8 +3,8 @@ package auth
 import (
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/gin-gonic/gin"
 )
 
 const (

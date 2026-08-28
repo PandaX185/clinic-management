@@ -38,19 +38,19 @@ func IsActive(s Status) bool {
 }
 
 type Appointment struct {
-	ID                 uuid.UUID  `json:"id"`
-	PatientID          uuid.UUID  `json:"patient_id"`
-	DoctorID           uuid.UUID  `json:"doctor_id"`
-	AppointmentTypeID  uuid.UUID  `json:"appointment_type_id"`
-	StartTime          time.Time  `json:"start_time"`
-	EndTime            time.Time  `json:"end_time"`
-	Status             Status     `json:"status"`
-	Notes              *string    `json:"notes,omitempty"`
-	CancellationReason *string    `json:"cancellation_reason,omitempty"`
-	Version            int32      `json:"version"`
-	CreatedBy          uuid.UUID  `json:"-"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"-"`
+	ID                 uuid.UUID `json:"id"`
+	PatientID          uuid.UUID `json:"patient_id"`
+	DoctorID           uuid.UUID `json:"doctor_id"`
+	AppointmentTypeID  uuid.UUID `json:"appointment_type_id"`
+	StartTime          time.Time `json:"start_time"`
+	EndTime            time.Time `json:"end_time"`
+	Status             Status    `json:"status"`
+	Notes              *string   `json:"notes,omitempty"`
+	CancellationReason *string   `json:"cancellation_reason,omitempty"`
+	Version            int32     `json:"version"`
+	CreatedBy          uuid.UUID `json:"-"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"-"`
 }
 
 type BookInput struct {

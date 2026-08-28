@@ -167,4 +167,3 @@ func (l *loggerAdapter) Error(msg string, args ...any) {
 	}
 	l.log.Error(msg, fields...)
 }
-

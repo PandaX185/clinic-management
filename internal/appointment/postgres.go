@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
@@ -213,18 +213,18 @@ func rawJSON(v any) []byte {
 
 func fromRow(a db.Appointment) *Appointment {
 	out := &Appointment{
-		ID:                a.ID,
-		PatientID:         a.ProfileID,
-		DoctorID:          a.DoctorProfileID,
-		AppointmentTypeID: a.AppointmentTypeID,
-		StartTime:         a.ScheduledStart,
-		EndTime:           a.ScheduledEnd,
-		Status:            Status(a.Status),
-		Notes:             pgTextToString(a.VisitNotes),
+		ID:                 a.ID,
+		PatientID:          a.ProfileID,
+		DoctorID:           a.DoctorProfileID,
+		AppointmentTypeID:  a.AppointmentTypeID,
+		StartTime:          a.ScheduledStart,
+		EndTime:            a.ScheduledEnd,
+		Status:             Status(a.Status),
+		Notes:              pgTextToString(a.VisitNotes),
 		CancellationReason: pgTextToString(a.CancellationReason),
-		Version:           a.Version,
-		CreatedAt:         a.CreatedAt,
-		UpdatedAt:         a.UpdatedAt,
+		Version:            a.Version,
+		CreatedAt:          a.CreatedAt,
+		UpdatedAt:          a.UpdatedAt,
 	}
 	if a.CreatedBy != nil {
 		out.CreatedBy = *a.CreatedBy

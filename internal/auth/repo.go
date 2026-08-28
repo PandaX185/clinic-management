@@ -15,10 +15,10 @@ import (
 
 // UserTenant represents a tenant that a user has access to, with their role.
 type UserTenant struct {
-	TenantID  uuid.UUID
+	TenantID   uuid.UUID
 	TenantName string
 	TenantSlug string
-	RoleName  string
+	RoleName   string
 }
 
 // Repository defines persistence operations for the auth package.

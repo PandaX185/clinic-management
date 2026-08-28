@@ -156,15 +156,20 @@ JOIN profile_roles pr ON pr.role_id = r.id
 WHERE pr.profile_id = $1
 `
 
-func (q *Queries) ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]Role, error) {
+type ListUserRolesRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]ListUserRolesRow, error) {
 	rows, err := q.db.Query(ctx, listUserRoles, profileID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Role{}
+	items := []ListUserRolesRow{}
 	for rows.Next() {
-		var i Role
+		var i ListUserRolesRow
 		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}

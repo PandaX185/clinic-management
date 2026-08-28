@@ -29,15 +29,27 @@ RETURNING *;
 
 -- RBAC (tenant-specific) ---------------------------------------------
 
+CREATE TABLE roles (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    name        VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT
+);
+
+CREATE TABLE permissions (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    name        VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
 CREATE TABLE role_permissions (
-    role_id       UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
-    permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
+    role_id       UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
     PRIMARY KEY (role_id, permission_id)
 );
 
 CREATE TABLE profile_roles (
     profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    role_id    UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    role_id    UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     PRIMARY KEY (profile_id, role_id)
 );
 

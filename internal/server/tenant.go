@@ -26,10 +26,10 @@ type TenantResolver interface {
 	SlugForTenant(ctx context.Context, tenantID uuid.UUID) (string, error)
 }
 
-// ProfileResolver returns the caller's role inside the tenant named by the
-// context's tenant slug; empty string means no profile yet.
+// ProfileResolver returns the caller's roles inside the tenant named by the
+// context's tenant slug; an empty slice means no profile yet (patient-level).
 type ProfileResolver interface {
-	RoleForUser(ctx context.Context, userID uuid.UUID) (string, error)
+	RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 }
 
 // authClaimsFrom recovers parsed token claims stored by auth.Middleware.
@@ -47,7 +47,7 @@ const CtxTenantSlug = "tenant_slug"
 
 var roleCacheTTL = 30 * time.Second
 
-// roleCache caches (user,tenant)->role so verified roles don't hit Postgres
+// roleCache caches (user,tenant)->roles so verified roles don't hit Postgres
 // per request. Only positive results are cached; revocation is effective
 // within TTL.
 type roleCache struct {
@@ -56,26 +56,26 @@ type roleCache struct {
 }
 
 type cachedRole struct {
-	role    string
+	roles   []string
 	expires time.Time
 }
 
 func newRoleCache() *roleCache { return &roleCache{items: map[string]cachedRole{}} }
 
-func (c *roleCache) get(userID string, tid uuid.UUID) (string, bool) {
+func (c *roleCache) get(userID string, tid uuid.UUID) ([]string, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	e, ok := c.items[userID+":"+tid.String()]
 	if !ok || time.Now().After(e.expires) {
-		return "", false
+		return nil, false
 	}
-	return e.role, true
+	return e.roles, true
 }
 
-func (c *roleCache) set(userID string, tid uuid.UUID, role string) {
+func (c *roleCache) set(userID string, tid uuid.UUID, roles []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[userID+":"+tid.String()] = cachedRole{role: role, expires: time.Now().Add(roleCacheTTL)}
+	c.items[userID+":"+tid.String()] = cachedRole{roles: roles, expires: time.Now().Add(roleCacheTTL)}
 }
 
 // TenantMiddleware implements the multi-tenant access model:
@@ -117,23 +117,23 @@ func TenantMiddleware(resolver TenantResolver, profiles ProfileResolver) gin.Han
 		}
 
 		// Resolve role within this tenant's schema; no profile = patient level.
-		role, cached := cache.get(userID.String(), tid)
+		roles, cached := cache.get(userID.String(), tid)
 		if !cached && userID != (uuid.UUID{}) {
 			// Temporarily pin the context so RoleForUser scopes correctly.
 			ctx := database.WithTenantSlug(c.Request.Context(), slug)
-			role, err = profiles.RoleForUser(ctx, userID)
+			roles, err = profiles.RoleForUser(ctx, userID)
 			if err != nil {
 				c.Error(err)
 				c.Abort()
 				return
 			}
-			cache.set(userID.String(), tid, role)
+			cache.set(userID.String(), tid, roles)
 		}
-		if role == "" {
-			role = "patient" // implicit baseline everywhere
+		if len(roles) == 0 {
+			roles = []string{"patient"} // implicit baseline everywhere
 		}
 
-		c.Set(auth.CtxRoles, []string{role})
+		c.Set(auth.CtxRoles, roles)
 		c.Set(CtxTenantSlug, slug)
 		c.Set("auth_tenant_id", tid)
 		c.Next()

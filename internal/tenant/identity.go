@@ -77,11 +77,37 @@ func (r *PostgresIdentityResolver) PatientIDForUser(ctx context.Context, userID 
 	return profileID, nil
 }
 
-// DoctorIDForUser returns uuid.Nil in v2 — doctors are profiles too and
-// there's no separate doctor-patient link. Access is role-based instead.
+// DoctorIDForUser returns the caller's profile ID when they hold the doctor
+// role in the active tenant, otherwise uuid.Nil. Doctors are profiles too;
+// their schedule scope is their own profile id, resolved via profile_roles.
 func (r *PostgresIdentityResolver) DoctorIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	// In v2, doctors are profiles; access is checked via role_permissions
-	// and profile_roles rather than separate doctor IDs.
-	// Return uuid.Nil and enforce authorization at the service level.
-	return uuid.Nil, nil
+	slug := database.TenantSlugFrom(ctx)
+	if slug == "" {
+		return uuid.Nil, nil
+	}
+	var profileID uuid.UUID
+	err := database.NewScopedPool(r.pool).WithSchema(ctx, slug, func(tx pgx.Tx) error {
+		profile, err := db.New(tx).GetProfileByUserID(ctx, userID)
+		if err != nil {
+			return err
+		}
+		roles, err := db.New(tx).ListUserRoles(ctx, profile.ID)
+		if err != nil {
+			return err
+		}
+		for _, rl := range roles {
+			if rl.Name == "doctor" {
+				profileID = profile.ID
+				return nil
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, nil
+		}
+		return uuid.Nil, apperr.Internal(err)
+	}
+	return profileID, nil
 }

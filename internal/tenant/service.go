@@ -47,7 +47,7 @@ type Store interface {
 type ProfileStore interface {
 	// RoleForUser returns the caller's role in the active tenant; empty
 	// means no profile yet (patient-level access).
-	RoleForUser(ctx context.Context, userID uuid.UUID) (string, error)
+	RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 	EnsurePatientProfile(ctx context.Context, userID uuid.UUID) error
 }
 

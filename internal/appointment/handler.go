@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	auth "github.com/PandaX185/clinic-management/internal/auth"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
 
@@ -41,9 +42,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		g.GET("/:id", h.Get)
 		g.POST("/:id/cancel", h.Cancel)
 		g.POST("/:id/reschedule", h.Reschedule)
-		g.POST("/:id/confirm", h.Confirm)
-		g.POST("/:id/complete", h.Complete)
-		g.POST("/:id/no-show", h.MarkNoShow)
+		// Staff/clinic actions: a patient may not confirm, complete, or mark
+		// no-show — those transition an appointment's clinical state and must
+		// be performed by clinic staff or an admin.
+		g.POST("/:id/confirm", auth.RequireRoles("admin", "staff"), h.Confirm)
+		g.POST("/:id/complete", auth.RequireRoles("admin", "staff"), h.Complete)
+		g.POST("/:id/no-show", auth.RequireRoles("admin", "staff"), h.MarkNoShow)
 	}
 }
 

@@ -28,15 +28,15 @@ func (f fakeTenantResolver) SlugForTenant(ctx context.Context, id uuid.UUID) (st
 }
 
 type fakeProfileResolver struct {
-	// (userID, slug) -> role; missing = no profile
-	roles map[string]string
+	// (userID, slug) -> roles; missing = no profile
+	roles map[string][]string
 }
 
-func (f fakeProfileResolver) RoleForUser(ctx context.Context, userID uuid.UUID) (string, error) {
+func (f fakeProfileResolver) RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
 	// The middleware pins the slug in ctx before calling us.
 	slug := database.TenantSlugFrom(ctx)
 	if slug == "" {
-		return "", errNoTenantScope
+		return nil, errNoTenantScope
 	}
 	return f.roles[userID.String()+":"+slug], nil
 }
@@ -83,7 +83,7 @@ func doReq(r *gin.Engine, w *httptest.ResponseRecorder, tenantHeader string) {
 // SEC: a request without a tenant header is rejected outright.
 func TestTenantMiddleware_MissingHeader(t *testing.T) {
 	resolver := fakeTenantResolver{slugs: map[uuid.UUID]string{}}
-	r, w := setupRouter(resolver, &fakeProfileResolver{roles: map[string]string{}})
+	r, w := setupRouter(resolver, &fakeProfileResolver{roles: map[string][]string{}})
 	doReq(r, w, "")
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for missing X-Tenant-ID, got %d", w.Code)
@@ -95,7 +95,7 @@ func TestTenantMiddleware_UnknownTenant(t *testing.T) {
 	resolver := fakeTenantResolver{slugs: map[uuid.UUID]string{
 		uuid.MustParse(tenantA): "clinic_a",
 	}}
-	r, w := setupRouter(resolver, &fakeProfileResolver{roles: map[string]string{}})
+	r, w := setupRouter(resolver, &fakeProfileResolver{roles: map[string][]string{}})
 	doReq(r, w, tenantCX)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown tenant, got %d", w.Code)
@@ -107,7 +107,7 @@ func TestTenantMiddleware_NoProfileIsPatient(t *testing.T) {
 	resolver := fakeTenantResolver{slugs: map[uuid.UUID]string{
 		uuid.MustParse(tenantA): "clinic_a",
 	}}
-	r, w := setupRouter(resolver, &fakeProfileResolver{roles: map[string]string{}})
+	r, w := setupRouter(resolver, &fakeProfileResolver{roles: map[string][]string{}})
 	doReq(r, w, tenantA)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
@@ -123,8 +123,8 @@ func TestTenantMiddleware_StaffInOwnClinicOnly(t *testing.T) {
 		uuid.MustParse(tenantA): "clinic_a",
 		uuid.MustParse(tenantB): "clinic_b",
 	}}
-	profiles := &fakeProfileResolver{roles: map[string]string{
-		userID + ":clinic_a": "staff", // staff only at clinic A
+	profiles := &fakeProfileResolver{roles: map[string][]string{
+		userID + ":clinic_a": {"staff"}, // staff only at clinic A
 	}}
 	r, _ := setupRouter(resolver, profiles)
 
@@ -150,8 +150,8 @@ func TestRoleCache_KeyedByTenant(t *testing.T) {
 	tidA := uuid.MustParse(tenantA)
 	tidB := uuid.MustParse(tenantB)
 
-	c.set(uid.String(), tidA, "staff")
-	if role, ok := c.get(uid.String(), tidB); ok && role == "staff" {
+	c.set(uid.String(), tidA, []string{"staff"})
+	if role, ok := c.get(uid.String(), tidB); ok && len(role) == 1 && role[0] == "staff" {
 		t.Fatal("staff role leaked to another tenant via cache")
 	}
 }

@@ -21,3 +21,6 @@ go.work.sum
 .hermes/
 # Local product strategy — not part of the public repo
 docs/STRATEGY.md
+
+# Local working TODOs — not part of the public repo
+TODO.md

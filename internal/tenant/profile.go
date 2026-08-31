@@ -2,13 +2,21 @@ package tenant
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/database"
+	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 )
 
 // PostgresProfileStore is a ProfileStore implementation that reads from
-// the active tenant schema via ScopedPool.
+// the active tenant schema via ScopedPool. The tenant slug is carried on the
+// context by TenantMiddleware (database.WithTenantSlug) and is the only
+// permitted source of the schema name.
 type PostgresProfileStore struct {
 	pool *pgxpool.Pool
 }
@@ -18,16 +26,59 @@ func NewScopedProfileStore(pool *pgxpool.Pool) *PostgresProfileStore {
 	return &PostgresProfileStore{pool: pool}
 }
 
-// RoleForUser returns the caller's role in the active tenant; empty
-// string means no profile yet (patient-level access).
-func (s *PostgresProfileStore) RoleForUser(ctx context.Context, userID uuid.UUID) (string, error) {
-	// In v2, role resolution happens inside the ScopedPool in the appointment
-	// package's identity resolution. This is a no-op stub for future per-tenant RBAC.
-	return "", nil
+// RoleForUser returns every role the caller holds in the active tenant. The
+// caller must have pinned the tenant slug on ctx (via TenantMiddleware); an
+// absent slug fails closed with an empty slice so the middleware falls back to
+// patient-level access rather than guessing a schema.
+func (s *PostgresProfileStore) RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	slug := database.TenantSlugFrom(ctx)
+	if slug == "" {
+		return nil, apperr.Internal(errors.New("tenant scope missing from context"))
+	}
+
+	var roles []string
+	err := database.NewScopedPool(s.pool).WithSchema(ctx, slug, func(tx pgx.Tx) error {
+		profile, err := db.New(tx).GetProfileByUserID(ctx, userID)
+		if err != nil {
+			return err
+		}
+		rows, err := db.New(tx).ListUserRoles(ctx, profile.ID)
+		if err != nil {
+			return err
+		}
+		roles = make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.Name != "" {
+				roles = append(roles, r.Name)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No profile in this tenant → caller is a patient-level visitor.
+			return nil, nil
+		}
+		return nil, apperr.Internal(err)
+	}
+	return roles, nil
 }
 
-// EnsurePatientProfile is a no-op in v2 — the booking flow auto-provisions
-// profiles. Retained for the ProfileStore interface contract.
+// EnsurePatientProfile creates the caller's patient profile in the active
+// tenant if it does not already exist. Booking relies on this so a patient
+// with no explicit profile can still be recorded as the appointment owner.
 func (s *PostgresProfileStore) EnsurePatientProfile(ctx context.Context, userID uuid.UUID) error {
-	return nil
+	slug := database.TenantSlugFrom(ctx)
+	if slug == "" {
+		return apperr.Internal(errors.New("tenant scope missing from context"))
+	}
+	return database.NewScopedPool(s.pool).WithSchema(ctx, slug, func(tx pgx.Tx) error {
+		if _, err := db.New(tx).UpsertPatientProfile(ctx, db.UpsertPatientProfileParams{
+			UserID:      userID,
+			DisplayName: "Patient",
+		}); err != nil {
+			return err
+		}
+		return nil
+	})
 }

@@ -58,6 +58,9 @@ func HashRefreshToken(token string) string {
 }
 
 // Issue generates a new token pair for a user (no roles in JWT; resolved per-request via tenant).
+// A random jti is embedded in the refresh token so every issuance is unique —
+// this is what makes rotation actually revoke the previous token (otherwise the
+// signature would be identical and DeleteRefreshToken would be a no-op).
 func (m *TokenManager) Issue(u *User) (*TokenPair, error) {
 	now := time.Now()
 
@@ -75,6 +78,7 @@ func (m *TokenManager) Issue(u *User) (*TokenPair, error) {
 	refresh := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uid": u.ID.String(),
 		"typ": TokenTypeRefresh,
+		"jti": uuid.NewString(),
 		"iat": now.Unix(),
 		"exp": now.Add(m.refreshTTL).Unix(),
 	})

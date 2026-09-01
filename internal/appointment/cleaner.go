@@ -2,11 +2,11 @@ package appointment
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.uber.org/zap"
 )
 
 // IdempotencyCleaner periodically purges expired idempotency-key rows so the
@@ -31,7 +31,7 @@ func NewIdempotencyCleaner(pool *pgxpool.Pool, interval time.Duration) *Idempote
 }
 
 // Run blocks until Stop is called or ctx is cancelled; run it in a goroutine.
-func (c *IdempotencyCleaner) Run(ctx context.Context, log *zap.Logger) {
+func (c *IdempotencyCleaner) Run(ctx context.Context, log *slog.Logger) {
 	defer close(c.done)
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
@@ -44,11 +44,11 @@ func (c *IdempotencyCleaner) Run(ctx context.Context, log *zap.Logger) {
 		case <-ticker.C:
 			n, err := db.New(c.pool).DeleteExpiredIdempotencyKeys(ctx)
 			if err != nil {
-				log.Error("idempotency key cleanup failed", zap.Error(err))
+				log.Error("idempotency key cleanup failed", "error", err.Error())
 				continue
 			}
 			if n > 0 {
-				log.Info("purged expired idempotency keys", zap.Int64("count", n))
+				log.Info("purged expired idempotency keys", "count", n)
 			}
 		}
 	}

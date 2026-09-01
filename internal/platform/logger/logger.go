@@ -1,25 +1,34 @@
+// Package logger builds a structured *slog.Logger from operator-configured
+// verbosity and output format.
 package logger
 
 import (
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"log/slog"
+	"os"
+	"strings"
 )
 
-func New(level, format string) (*zap.Logger, error) {
-	lvl := zapcore.InfoLevel
-	if err := lvl.UnmarshalText([]byte(level)); err != nil {
-		return nil, err
+// New returns a slog.Logger emitting at the given level. format may be
+// "text" (human-readable) or anything else (JSON, the default).
+func New(level, format string) (*slog.Logger, error) {
+	var lvl slog.Level
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "debug":
+		lvl = slog.LevelDebug
+	case "warn", "warning":
+		lvl = slog.LevelWarn
+	case "error":
+		lvl = slog.LevelError
+	default:
+		lvl = slog.LevelInfo
 	}
 
-	var cfg zap.Config
-	if format == "console" {
-		cfg = zap.NewDevelopmentConfig()
+	opts := &slog.HandlerOptions{Level: lvl}
+	var handler slog.Handler
+	if strings.EqualFold(strings.TrimSpace(format), "text") {
+		handler = slog.NewTextHandler(os.Stdout, opts)
 	} else {
-		cfg = zap.NewProductionConfig()
+		handler = slog.NewJSONHandler(os.Stdout, opts)
 	}
-	cfg.Level = zap.NewAtomicLevelAt(lvl)
-	cfg.EncoderConfig.TimeKey = "ts"
-	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	return cfg.Build(zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
+	return slog.New(handler), nil
 }

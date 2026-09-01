@@ -4,8 +4,9 @@ sql:
   schema:
   - db/migrations/global/000000_extensions.up.sql
   - db/migrations/global/000001_functions.up.sql
-  - db/migrations/global/000001_tenants.up.sql
-  - db/migrations/global/000002_admin.up.sql
+  - db/migrations/global/000002_tenants.up.sql
+  - db/migrations/global/000003_admin.up.sql
+  - db/migrations/global/000004_user_tenants.up.sql
   - db/queries/tenant/schema_profiles.sql
   queries:
   - db/queries/auth

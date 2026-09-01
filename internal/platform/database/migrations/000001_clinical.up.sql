@@ -14,9 +14,6 @@ CREATE TABLE profiles (
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON profiles
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
 CREATE INDEX idx_profiles_role ON profiles(status);
 
 -- RBAC ---------------------------------------------------------------
@@ -59,8 +56,6 @@ CREATE TABLE appointment_types (
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE TRIGGER trg_appointment_types_updated_at BEFORE UPDATE ON appointment_types
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Appointments --------------------------------------------------------
 
@@ -102,8 +97,6 @@ CREATE INDEX idx_appointments_doctor_range ON appointments(doctor_profile_id, sc
     WHERE status IN ('scheduled', 'confirmed', 'checked_in');
 CREATE INDEX idx_appointments_status_start ON appointments(status, scheduled_start);
 
-CREATE TRIGGER trg_appointments_updated_at BEFORE UPDATE ON appointments
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Queue ----------------------------------------------------------------
 
@@ -133,8 +126,6 @@ CREATE INDEX idx_queue_active ON queue_entries(status, priority DESC, checked_in
     WHERE status IN ('waiting', 'called', 'in_progress');
 CREATE INDEX idx_queue_appointment ON queue_entries(appointment_id);
 
-CREATE TRIGGER trg_queue_entries_updated_at BEFORE UPDATE ON queue_entries
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Schedules ------------------------------------------------------------
 
@@ -153,8 +144,6 @@ CREATE TABLE doctor_schedules (
 
 CREATE INDEX idx_doctor_schedules_doctor ON doctor_schedules(doctor_profile_id);
 
-CREATE TRIGGER trg_doctor_schedules_updated_at BEFORE UPDATE ON doctor_schedules
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TABLE schedule_exceptions (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -174,8 +163,6 @@ CREATE TABLE schedule_exceptions (
 
 CREATE INDEX idx_schedule_exceptions_doctor_date ON schedule_exceptions(doctor_profile_id, date);
 
-CREATE TRIGGER trg_schedule_exceptions_updated_at BEFORE UPDATE ON schedule_exceptions
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Payments -------------------------------------------------------------
 
@@ -195,8 +182,6 @@ CREATE TABLE payments (
 
 CREATE INDEX idx_payments_status ON payments(status, created_at);
 
-CREATE TRIGGER trg_payments_updated_at BEFORE UPDATE ON payments
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Idempotency (BR-07) ----------------------------------------------------
 

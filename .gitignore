@@ -1,5 +1,6 @@
 # Binaries
 bin/
+/api
 clinic-management
 coverage.out
 coverage.html

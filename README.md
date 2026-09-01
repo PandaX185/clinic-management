@@ -23,15 +23,18 @@ Multi-clinic appointment backend in Go — each clinic gets its own isolated Pos
 
 ## Stack
 
-| Layer      | Tech |
-|------------|------|
-| Language   | Go 1.25 |
-| Router     | Chi v5 |
-| Database   | PostgreSQL 16 + pgx/v5 + sqlc |
-| Migrations | golang-migrate + embedded tenant migrations |
-| Cache      | Redis 7 (rate limiting) |
-| Messaging  | NATS JetStream (optional at boot) |
-| Auth       | JWT HS256 + bcrypt |
+| Layer        | Tech |
+|--------------|------|
+| Language     | Go 1.25 |
+| Router       | gin (chi removed) |
+| HTTP Server  | net/http + single gin engine (incl. /metrics) |
+| Database     | PostgreSQL 16 + pgx/v5 + sqlc |
+| Migrations   | golang-migrate + embedded tenant migrations |
+| Cache        | Redis 7 (rate limiting) |
+| Messaging    | NATS JetStream (optional at boot) |
+| Auth         | JWT HS256 + bcrypt + per-tenant RBAC + global super-admin |
+| Logging      | log/slog (zap removed) |
+| Connections  | shared retry: per-dependency context + timeout + backoff, all env-configurable (`*_CONNECT_*`)
 
 ## Quick start
 
@@ -49,14 +52,6 @@ make migrate-up
 make run
 ```
 
-### Migrating an existing single-tenant database
-
-If you ran an older version, `cmd/migrate-to-tenants` moves existing clinical data into a `default` clinic schema:
-
-```bash
-go run ./cmd/migrate-to-tenants
-```
-
 ## API sketch
 
 All clinical endpoints require `X-Tenant-ID: <clinic uuid>`.
@@ -66,20 +61,32 @@ POST /api/v1/auth/register          # global sign-up
 POST /api/v1/auth/login             # global login
 GET  /api/v1/tenants                # list clinics
 GET  /api/v1/tenants/mine           # your clinics
-GET  /api/v1/doctors                # doctors at X-Tenant-ID
+GET  /api/v1/auth/me                # your global profile (auth only)
+GET  /api/v1/auth/tenants           # tenants you belong to (auth only)
+POST /api/v1/tenants                # create clinic (global super-admin)
+POST /api/v1/tenants/{id}/staff     # assign a role in a clinic (per-clinic admin)
 GET  /api/v1/appointments           # your appointments at X-Tenant-ID
 POST /api/v1/appointments           # book (patient_id is forced to you)
 POST /api/v1/appointments/{id}/cancel | /reschedule | /confirm | /complete | /no-show
 GET  /metrics                       # Prometheus
 ```
 
+### Authorisation model
+
+Two independent gates enforce access:
+
+- **Per-clinic roles** (the common path): every clinical endpoint resolves the caller's role from the active tenant's `profiles → profile_roles → roles` via `X-Tenant-ID` (`TenantMiddleware`). Any signed-in user without a profile is treated as a `patient`. Staff/admin-only transitions (`confirm`, `complete`, `no-show`) and tenant management (`BindStaff`) are gated by `RequireRoles`.
+- **Global super-admin**: provisioning a clinic (`POST /tenants`) has no tenant to resolve a role from, so it is gated on `users.is_admin` (`RequireGlobalAdmin`) instead. Set `users.is_admin = true` directly (there is no self-service path).
+
+Standard roles (`admin`, `staff`, `doctor`, `nurse`, `manager`, `patient`) are seeded into every tenant schema at provision time.
+
 ## Project structure
 
 ```
 ├── cmd/
-│   ├── api/                    # entry point + wiring
-│   └── migrate-to-tenants/     # one-shot legacy data migration
+│   └── api/                    # thin entry point: lifecycle only (config, logger, db, shutdown)
 ├── internal/
+│   ├── app/wiring/             # constructs the full dependency graph + router
 │   ├── auth/                   # JWT, login/refresh, middleware
 │   ├── tenant/                 # tenants, memberships, profiles
 │   ├── appointment/            # domain logic, scoped repository

@@ -12,6 +12,7 @@ import (
 )
 
 type Querier interface {
+	AssignRoleToProfile(ctx context.Context, arg AssignRoleToProfileParams) error
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
 	// Appointments (schema v2: profile-based, typed, queue-ready)
 	CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error)
@@ -24,8 +25,10 @@ type Querier interface {
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
 	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
 	GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
+	GetRoleByName(ctx context.Context, name string) (Role, error)
 	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
+	GetUserAdminFlag(ctx context.Context, id uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Auth (schema v2: phone-only identity)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)

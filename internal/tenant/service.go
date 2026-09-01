@@ -2,14 +2,17 @@ package tenant
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
+	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 )
 
 // PoolProvider provides access to a pgx connection pool.
@@ -39,7 +42,6 @@ type Store interface {
 	ListTenants(ctx context.Context) ([]Tenant, error)
 	SetTenantActive(ctx context.Context, id uuid.UUID, active bool) error
 	TenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
-	AddStaffBinding(ctx context.Context, userID, tenantID uuid.UUID) error
 	Pool() *pgxpool.Pool
 }
 
@@ -113,10 +115,17 @@ func (s *Service) Deactivate(ctx context.Context, id uuid.UUID) error {
 	return s.store.SetTenantActive(ctx, id, false)
 }
 
-// BindStaff registers a doctor/staff/admin binding so the clinic shows up in
-// that user's list at login. The actual role lives in the tenant's profiles
-// table and must be provisioned separately by an admin of that clinic.
-func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID) error {
+// standardRoles are the roles seeded into every tenant schema on provision.
+var standardRoles = map[string]bool{
+	"admin": true, "staff": true, "doctor": true,
+	"nurse": true, "manager": true, "patient": true,
+}
+
+// BindStaff registers a user within a tenant's profile table with the given
+// role, so the clinic shows up in that user's list at login and access checks
+// resolve the role from the tenant's profile_roles. The role row must exist
+// (seeded by ProvisionTenant); assignment is idempotent.
+func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID, role string) error {
 	t, err := s.store.GetTenantByID(ctx, tenantID)
 	if err != nil {
 		return err
@@ -124,7 +133,31 @@ func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID) err
 	if !t.IsActive {
 		return apperr.Invalid("tenant is not active")
 	}
-	return s.store.AddStaffBinding(ctx, userID, tenantID)
+	role = strings.ToLower(strings.TrimSpace(role))
+	if !standardRoles[role] {
+		return apperr.Invalid("unknown role: " + role)
+	}
+
+	return database.WithTenantSchema(ctx, s.pool.Pool(), t.Slug, func(q db.DBTX) error {
+		prof, err := db.New(q).UpsertPatientProfile(ctx, db.UpsertPatientProfileParams{
+			UserID:      userID,
+			DisplayName: role,
+		})
+		if err != nil {
+			return err
+		}
+		r, err := db.New(q).GetRoleByName(ctx, role)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return apperr.Internal(errors.New("role not seeded in tenant schema"))
+			}
+			return err
+		}
+		return db.New(q).AssignRoleToProfile(ctx, db.AssignRoleToProfileParams{
+			ProfileID: prof.ID,
+			RoleID:    r.ID,
+		})
+	})
 }
 
 func normalizeSlug(s string) string {

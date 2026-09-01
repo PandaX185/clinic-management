@@ -23,6 +23,7 @@ type User struct {
 	PasswordHash string
 	FullName     string
 	IsActive     bool
+	IsAdmin      bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

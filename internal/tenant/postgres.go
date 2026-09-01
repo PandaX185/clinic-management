@@ -87,10 +87,3 @@ func (s *PostgresStore) TenantsForUser(ctx context.Context, userID uuid.UUID) ([
 	}
 	return out, nil
 }
-
-// AddStaffBinding is a no-op for now. In v2, profile creation happens in
-// the tenant schema (ProfileStore), not via a global user_tenants table.
-// The tenant.Service.BindStaff method handles validation and profile creation.
-func (s *PostgresStore) AddStaffBinding(ctx context.Context, userID, tenantID uuid.UUID) error {
-	return nil
-}

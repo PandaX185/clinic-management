@@ -13,6 +13,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const assignRoleToProfile = `-- name: AssignRoleToProfile :exec
+INSERT INTO profile_roles (profile_id, role_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AssignRoleToProfileParams struct {
+	ProfileID uuid.UUID
+	RoleID    uuid.UUID
+}
+
+func (q *Queries) AssignRoleToProfile(ctx context.Context, arg AssignRoleToProfileParams) error {
+	_, err := q.db.Exec(ctx, assignRoleToProfile, arg.ProfileID, arg.RoleID)
+	return err
+}
+
 const deleteExpiredIdempotencyKeys = `-- name: DeleteExpiredIdempotencyKeys :execrows
 DELETE FROM idempotency_keys WHERE expires_at < now()
 `
@@ -84,6 +100,17 @@ func (q *Queries) GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Pro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getRoleByName = `-- name: GetRoleByName :one
+SELECT id, name, description FROM roles WHERE name = $1
+`
+
+func (q *Queries) GetRoleByName(ctx context.Context, name string) (Role, error) {
+	row := q.db.QueryRow(ctx, getRoleByName, name)
+	var i Role
+	err := row.Scan(&i.ID, &i.Name, &i.Description)
 	return i, err
 }
 

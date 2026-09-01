@@ -75,6 +75,17 @@ func ProvisionTenant(ctx context.Context, pool *pgxpool.Pool, slug string) error
 		}
 	}
 
+	// Seed the standard role set so per-clinic RBAC has something to resolve
+	// against. Without these rows RoleForUser returns nothing and everyone
+	// is treated as a patient. Idempotent (ON CONFLICT), safe on re-provision.
+	for _, role := range []string{"admin", "staff", "doctor", "nurse", "manager", "patient"} {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO roles (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, role,
+		); err != nil {
+			return fmt.Errorf("seed role %q in %s: %w", role, schema, err)
+		}
+	}
+
 	return tx.Commit(ctx)
 }
 
@@ -94,7 +105,7 @@ func ListTenantSchemas(ctx context.Context, pool *pgxpool.Pool) ([]string, error
 	rows, err := pool.Query(ctx,
 		`SELECT t.slug FROM tenants t
 		 JOIN pg_namespace n ON n.nspname = 'tenant_' || t.slug
-		 WHERE t.is_active ORDER BY t.slug`)
+		 WHERE t.status = 'active' ORDER BY t.slug`)
 	if err != nil {
 		return nil, err
 	}

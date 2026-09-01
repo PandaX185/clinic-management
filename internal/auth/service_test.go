@@ -49,6 +49,9 @@ func (f *fakeRepo) GetUserByPhone(context.Context, string) (*User, error) {
 func (f *fakeRepo) GetUserByID(_ context.Context, id uuid.UUID) (*User, error) {
 	return &User{ID: id, IsActive: true, Phone: "+200000000000", FullName: "Test"}, nil
 }
+func (f *fakeRepo) IsGlobalAdmin(context.Context, uuid.UUID) (bool, error) {
+	return false, nil
+}
 func (f *fakeRepo) UpdateUserStatus(context.Context, uuid.UUID, string) error {
 	return errors.New("not implemented")
 }

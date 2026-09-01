@@ -126,6 +126,11 @@ func (s *Service) ParseAccessToken(token string) (*Claims, error) {
 	return s.tokens.Parse(token, TokenTypeAccess)
 }
 
+// IsGlobalAdmin reports whether the user carries the global super-admin flag.
+func (s *Service) IsGlobalAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	return s.repo.IsGlobalAdmin(ctx, userID)
+}
+
 // Login authenticates a user and returns a token pair with refresh token stored.
 func (s *Service) Login(ctx context.Context, in LoginInput) (*TokenPair, error) {
 	user, err := s.repo.GetUserByPhone(ctx, normalizePhone(in.Phone))

@@ -1,11 +1,20 @@
 package auth
 
 import (
+	"context"
 	"strings"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
+
+// GlobalAdminChecker resolves the global super-admin flag. It is distinct
+// from per-tenant roles (TenantMiddleware + RequireRoles); this gate governs
+// registry-level operations like provisioning a clinic.
+type GlobalAdminChecker interface {
+	IsGlobalAdmin(ctx context.Context, userID uuid.UUID) (bool, error)
+}
 
 const (
 	CtxUserID = "auth_user_id"
@@ -13,10 +22,10 @@ const (
 	CtxClaims = "auth_claims"
 )
 
-// Middleware verifies the JWT access token and extracts the user ID.
+// JwtMiddleware verifies the JWT access token and extracts the user ID.
 // Roles are NOT in the JWT — they're resolved per-request by TenantMiddleware
 // using the X-Tenant-ID header and the tenant's profiles table.
-func Middleware(svc *Service) gin.HandlerFunc {
+func JwtMiddleware(svc *Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -70,4 +79,24 @@ func UserIDFrom(c *gin.Context) (string, bool) {
 	}
 	s, ok := v.(string)
 	return s, ok
+}
+
+// RequireGlobalAdmin denies the request unless the authenticated caller is a
+// global super-admin (users.is_admin). Must be composed AFTER JwtMiddleware so
+// auth_user_id is populated. Unlike RequireRoles it needs no X-Tenant-ID
+// because it checks a global flag, not a per-tenant profile.
+func RequireGlobalAdmin(checker GlobalAdminChecker) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		uid, err := uuid.Parse(c.GetString(CtxUserID))
+		if err != nil {
+			c.AbortWithStatusJSON(apperr.HTTPStatus(apperr.KindForbidden), gin.H{"error": "insufficient permissions"})
+			return
+		}
+		admin, err := checker.IsGlobalAdmin(c.Request.Context(), uid)
+		if err != nil || !admin {
+			c.AbortWithStatusJSON(apperr.HTTPStatus(apperr.KindForbidden), gin.H{"error": "insufficient permissions"})
+			return
+		}
+		c.Next()
+	}
 }

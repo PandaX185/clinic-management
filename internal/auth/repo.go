@@ -26,6 +26,7 @@ type Repository interface {
 	CreateUser(ctx context.Context, phone, passwordHash, fullName string) (*User, error)
 	GetUserByPhone(ctx context.Context, phone string) (*User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
+	IsGlobalAdmin(ctx context.Context, userID uuid.UUID) (bool, error)
 	StoreRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error
 	DeleteRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string) error
 	ValidateRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string) error
@@ -67,6 +68,19 @@ func (r *PostgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*Us
 		return nil, apperr.Internal(err)
 	}
 	return userFromRow(row), nil
+}
+
+// IsGlobalAdmin reports whether the user holds the global super-admin flag
+// (distinct from the per-clinic "admin" role resolved from tenant profiles).
+func (r *PostgresRepository) IsGlobalAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	admin, err := db.New(r.pool).GetUserAdminFlag(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, apperr.Internal(err)
+	}
+	return admin, nil
 }
 
 func (r *PostgresRepository) StoreRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error {
@@ -115,6 +129,7 @@ func userFromRow(row db.User) *User {
 		PasswordHash: row.PasswordHash,
 		FullName:     row.FullName,
 		IsActive:     row.Status == "active",
+		IsAdmin:      row.IsAdmin,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
 	}

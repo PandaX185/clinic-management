@@ -59,6 +59,14 @@ FROM roles r
 JOIN profile_roles pr ON pr.role_id = r.id
 WHERE pr.profile_id = $1;
 
+-- name: GetRoleByName :one
+SELECT * FROM roles WHERE name = $1;
+
+-- name: AssignRoleToProfile :exec
+INSERT INTO profile_roles (profile_id, role_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
+
 -- Appointment types ---------------------------------------------------
 
 CREATE TABLE appointment_types (

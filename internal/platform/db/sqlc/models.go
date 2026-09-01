@@ -125,6 +125,7 @@ type User struct {
 	Status       string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	IsAdmin      bool
 }
 
 type UserRefreshToken struct {

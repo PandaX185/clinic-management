@@ -15,7 +15,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (phone, password_hash, full_name)
 VALUES ($1, $2, $3)
-RETURNING id, phone, password_hash, full_name, status, created_at, updated_at
+RETURNING id, phone, password_hash, full_name, status, created_at, updated_at, is_admin
 `
 
 type CreateUserParams struct {
@@ -35,6 +35,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAdmin,
 	)
 	return i, err
 }
@@ -54,8 +55,19 @@ func (q *Queries) DeleteRefreshToken(ctx context.Context, arg DeleteRefreshToken
 	return err
 }
 
+const getUserAdminFlag = `-- name: GetUserAdminFlag :one
+SELECT is_admin FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserAdminFlag(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, getUserAdminFlag, id)
+	var is_admin bool
+	err := row.Scan(&is_admin)
+	return is_admin, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, phone, password_hash, full_name, status, created_at, updated_at FROM users WHERE id = $1
+SELECT id, phone, password_hash, full_name, status, created_at, updated_at, is_admin FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -69,13 +81,14 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAdmin,
 	)
 	return i, err
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
 
-SELECT id, phone, password_hash, full_name, status, created_at, updated_at FROM users WHERE phone = $1
+SELECT id, phone, password_hash, full_name, status, created_at, updated_at, is_admin FROM users WHERE phone = $1
 `
 
 // Auth (schema v2: phone-only identity)
@@ -90,6 +103,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsAdmin,
 	)
 	return i, err
 }

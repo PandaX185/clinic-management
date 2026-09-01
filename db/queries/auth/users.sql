@@ -6,6 +6,9 @@ SELECT * FROM users WHERE phone = $1;
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
+-- name: GetUserAdminFlag :one
+SELECT is_admin FROM users WHERE id = $1;
+
 -- name: CreateUser :one
 INSERT INTO users (phone, password_hash, full_name)
 VALUES ($1, $2, $3)

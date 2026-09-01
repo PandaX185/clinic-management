@@ -72,6 +72,7 @@ func (h *Handler) Create(c *gin.Context) {
 func (h *Handler) BindStaff(c *gin.Context) {
 	var in struct {
 		UserID string `json:"user_id" binding:"required,uuid"`
+		Role   string `json:"role"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.Invalid("invalid request body"))
@@ -87,7 +88,7 @@ func (h *Handler) BindStaff(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	if err := h.svc.BindStaff(c.Request.Context(), uid, tid); err != nil {
+	if err := h.svc.BindStaff(c.Request.Context(), uid, tid, in.Role); err != nil {
 		c.Error(err)
 		return
 	}

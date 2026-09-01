@@ -53,6 +53,12 @@ func From(err error) *Error {
 	return Internal(err)
 }
 
+// ErrorResponse is the standard error body emitted by the server's error
+// handler: {"error": "<message>"}. Referenced by Swagger @Failure annotations.
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
 func HTTPStatus(k Kind) int {
 	switch k {
 	case KindInvalid:

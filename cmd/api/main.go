@@ -1,3 +1,13 @@
+// @title Clinic Management API
+// @version 1.0.0
+// @description Multi-tenant clinic management: auth, tenant registry, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).
+// @host localhost:8080
+// @BasePath /api/v1
+//
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Authenticate as `Bearer <access_token>`.
 package main
 
 import (
@@ -7,6 +17,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "github.com/PandaX185/clinic-management/docs"
 
 	"github.com/PandaX185/clinic-management/internal/app/wiring"
 	"github.com/PandaX185/clinic-management/internal/platform/config"

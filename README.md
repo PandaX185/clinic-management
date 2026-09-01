@@ -54,6 +54,9 @@ make run
 
 ## API sketch
 
+Interactive docs (Swagger UI): `http://localhost:8080/swagger/index.html`
+(spec: `/swagger/doc.json`). Regenerate after handler changes with `make swagger`.
+
 All clinical endpoints require `X-Tenant-ID: <clinic uuid>`.
 
 ```

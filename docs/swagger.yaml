@@ -1,0 +1,813 @@
+basePath: /api/v1
+definitions:
+  apperr.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  appointment.BookInput:
+    properties:
+      doctor_id:
+        type: string
+      duration_minutes:
+        maximum: 480
+        minimum: 5
+        type: integer
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+    required:
+    - doctor_id
+    - duration_minutes
+    - patient_id
+    - start_time
+    type: object
+  appointment.CancelInput:
+    properties:
+      reason:
+        maxLength: 1000
+        type: string
+    required:
+    - reason
+    type: object
+  appointment.RescheduleInput:
+    properties:
+      duration_minutes:
+        maximum: 480
+        minimum: 5
+        type: integer
+      start_time:
+        type: string
+    required:
+    - duration_minutes
+    - start_time
+    type: object
+  appointment.appointmentResponse:
+    properties:
+      cancellation_reason:
+        type: string
+      created_at:
+        type: string
+      doctor_id:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      version:
+        type: integer
+    type: object
+  appointment.appointmentsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/appointment.appointmentResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  auth.LoginInput:
+    properties:
+      password:
+        type: string
+      phone:
+        type: string
+    required:
+    - password
+    - phone
+    type: object
+  auth.RegisterInput:
+    properties:
+      full_name:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+      phone:
+        type: string
+    required:
+    - full_name
+    - password
+    - phone
+    type: object
+  auth.TokenPair:
+    properties:
+      accessToken:
+        type: string
+      expiresIn:
+        format: int64
+        type: integer
+      refreshToken:
+        type: string
+      tokenType:
+        type: string
+    type: object
+  auth.UserTenant:
+    properties:
+      roleName:
+        type: string
+      tenantID:
+        type: string
+      tenantName:
+        type: string
+      tenantSlug:
+        type: string
+    type: object
+  auth.userResponse:
+    properties:
+      created_at:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phone:
+        type: string
+    type: object
+  tenant.bindStaffInput:
+    properties:
+      role:
+        type: string
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
+  tenant.bindStaffResponse:
+    properties:
+      bound:
+        type: boolean
+    type: object
+  tenant.createTenantInput:
+    properties:
+      name:
+        maxLength: 255
+        type: string
+      slug:
+        maxLength: 63
+        type: string
+    required:
+    - name
+    - slug
+    type: object
+  tenant.tenantResponse:
+    properties:
+      id:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  tenant.tenantsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/tenant.tenantResponse'
+        type: array
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: 'Multi-tenant clinic management: auth, tenant registry, and appointments.
+    Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires
+    a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require
+    the X-Tenant-ID header (see each operation).'
+  title: Clinic Management API
+  version: 1.0.0
+paths:
+  /appointments:
+    get:
+      description: Lists appointments in the active tenant with optional filters and
+        pagination.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Filter by patient id
+        in: query
+        name: patient_id
+        type: string
+      - description: Filter by doctor id
+        in: query
+        name: doctor_id
+        type: string
+      - description: Filter by status
+        enum:
+        - scheduled
+        - confirmed
+        - completed
+        - cancelled
+        - no_show
+        in: query
+        name: status
+        type: string
+      - description: Start of time window (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End of time window (RFC3339)
+        in: query
+        name: to
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - description: Page offset
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List appointments
+      tags:
+      - appointments
+    post:
+      consumes:
+      - application/json
+      description: 'Creates an appointment in the active tenant (X-Tenant-ID). Concurrency-safe
+        against overlapping schedules; providing the Idempotency-Key header makes
+        the request repeatable — a replayed request returns the stored response with
+        an Idempotent-Replay: true header.'
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Client-generated idempotency key
+        in: header
+        name: Idempotency-Key
+        type: string
+      - description: Appointment details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/appointment.BookInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Book an appointment
+      tags:
+      - appointments
+  /appointments/{id}:
+    get:
+      description: Returns a single appointment by id within the active tenant.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get appointment
+      tags:
+      - appointments
+  /appointments/{id}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancels an appointment in the active tenant with a required reason.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cancellation reason
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/appointment.CancelInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel appointment
+      tags:
+      - appointments
+  /appointments/{id}/complete:
+    post:
+      description: Marks an appointment as completed. Requires the admin or staff
+        role in the active tenant; patients may not perform this action.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Complete appointment
+      tags:
+      - appointments
+  /appointments/{id}/confirm:
+    post:
+      description: Marks an appointment as confirmed. Requires the admin or staff
+        role in the active tenant; patients may not perform this action.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Confirm appointment
+      tags:
+      - appointments
+  /appointments/{id}/no-show:
+    post:
+      description: Marks an appointment as a no-show. Requires the admin or staff
+        role in the active tenant; patients may not perform this action.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark appointment as no-show
+      tags:
+      - appointments
+  /appointments/{id}/reschedule:
+    post:
+      consumes:
+      - application/json
+      description: Moves an appointment to a new start time and/or duration in the
+        active tenant.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New timing
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/appointment.RescheduleInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/appointment.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reschedule appointment
+      tags:
+      - appointments
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user by E.164 phone number and password, returning
+        JWT access and refresh tokens.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.TokenPair'
+      summary: Login with phone and password
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes the given refresh token. The user must provide a valid
+        refresh token.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: input
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Logout
+      tags:
+      - auth
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Returns the authenticated user's profile information.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.userResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges a valid refresh token for a new access token pair.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: input
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.TokenPair'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new patient account. Public endpoint — registration
+        only creates patient accounts.
+      parameters:
+      - description: Registration details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/auth.userResponse'
+      summary: Register a new patient account
+      tags:
+      - auth
+  /auth/tenants:
+    get:
+      consumes:
+      - application/json
+      description: Returns all tenants associated with the current user, with their
+        role in each.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/auth.UserTenant'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List user's tenants
+      tags:
+      - auth
+  /tenants:
+    get:
+      description: Returns all active clinics. Patients may browse the full registry.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tenant.tenantsListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List clinics
+      tags:
+      - tenants
+    post:
+      consumes:
+      - application/json
+      description: Provisions a new clinic and its tenant schema. Gated on the global
+        super-admin flag (users.is_admin); no X-Tenant-ID is involved.
+      parameters:
+      - description: Clinic details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/tenant.createTenantInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/tenant.tenantResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create clinic
+      tags:
+      - tenants
+  /tenants/{id}/staff:
+    post:
+      consumes:
+      - application/json
+      description: Associates a user with a clinic and assigns them a role. Requires
+        the admin role in the clinic identified by X-Tenant-ID.
+      parameters:
+      - description: Tenant id (clinic to assign into)
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Tenant id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Staff binding
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/tenant.bindStaffInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tenant.bindStaffResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Bind staff to clinic
+      tags:
+      - tenants
+  /tenants/mine:
+    get:
+      description: Returns the clinics the current user has a profile in; falls back
+        to all active clinics when the user has no staff bindings.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tenant.tenantsListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List my clinics
+      tags:
+      - tenants
+securityDefinitions:
+  BearerAuth:
+    description: Authenticate as `Bearer <access_token>`.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

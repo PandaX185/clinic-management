@@ -1,4 +1,4 @@
-.PHONY: help build run test test-race test-coverage lint vet fmt sqlc migrate-up migrate-down docker-build docker-up docker-down tidy
+.PHONY: help build run test test-race test-coverage lint vet fmt sqlc swagger migrate-up migrate-down docker-build docker-up docker-down tidy
 
 help:
 	@echo "Targets:"
@@ -11,6 +11,7 @@ help:
 	@echo "  vet            - go vet ./..."
 	@echo "  fmt            - gofmt all sources"
 	@echo "  sqlc           - regenerate db layer"
+	@echo "  swagger        - regenerate swagger docs (swag init)"
 	@echo "  migrate-up     - apply all migrations"
 	@echo "  migrate-down   - revert one migration"
 	@echo "  docker-build   - build production image"
@@ -44,6 +45,9 @@ fmt:
 
 sqlc:
 	sqlc generate
+
+swagger:
+	swag init -g cmd/api/main.go -d . -o docs --parseInternal=true
 
 migrate-up:
 	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" up

@@ -28,15 +28,17 @@ SELECT id, profile_id, doctor_profile_id, appointment_type_id,
     visit_notes, follow_up_date, cancellation_reason,
     version, created_by, created_at, updated_at
 FROM appointments
-WHERE (profile_id = $1 OR doctor_profile_id = $1)
-  AND status = ANY($2)
+WHERE (CAST($1 AS UUID) = '00000000-0000-0000-0000-000000000000'
+       OR profile_id = $1 OR doctor_profile_id = $1)
+  AND (CAST($2 AS VARCHAR) = '' OR status = CAST($2 AS VARCHAR))
 ORDER BY scheduled_start DESC
 LIMIT $3 OFFSET $4;
 
 -- name: CountAppointments :one
 SELECT COUNT(*) FROM appointments
-WHERE (profile_id = $1 OR doctor_profile_id = $1)
-  AND status = ANY($2);
+WHERE (CAST($1 AS UUID) = '00000000-0000-0000-0000-000000000000'
+       OR profile_id = $1 OR doctor_profile_id = $1)
+  AND (CAST($2 AS VARCHAR) = '' OR status = CAST($2 AS VARCHAR));
 
 -- name: RescheduleAppointment :one
 UPDATE appointments SET

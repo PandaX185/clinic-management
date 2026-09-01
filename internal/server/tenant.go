@@ -136,6 +136,11 @@ func TenantMiddleware(resolver TenantResolver, profiles ProfileResolver) gin.Han
 		c.Set(auth.CtxRoles, roles)
 		c.Set(CtxTenantSlug, slug)
 		c.Set("auth_tenant_id", tid)
+		// Pin the schema slug on the request context itself so downstream
+		// repositories (appointment, directory, ...) resolve tenant-scoped
+		// queries through database.TenantSlugFrom(ctx). Without this bridge
+		// every tenant query would run against an empty schema and fail.
+		c.Request = c.Request.WithContext(database.WithTenantSlug(c.Request.Context(), slug))
 		c.Next()
 	}
 }

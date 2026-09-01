@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 )
 
@@ -22,14 +23,26 @@ func NewPostgresIdentityResolver(pool *pgxpool.Pool) *PostgresIdentityResolver {
 
 // PatientIDForUser returns uuid.Nil when no patient row is linked.
 func (r *PostgresIdentityResolver) PatientIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	profile, err := db.New(r.pool).GetProfileByUserID(ctx, userID)
+	slug := database.TenantSlugFrom(ctx)
+	if slug == "" {
+		return uuid.Nil, apperr.Internal(errors.New("tenant scope missing from context"))
+	}
+	var profileID uuid.UUID
+	err := database.NewScopedPool(r.pool).WithSchema(ctx, slug, func(tx pgx.Tx) error {
+		profile, err := db.New(tx).GetProfileByUserID(ctx, userID)
+		if err != nil {
+			return err
+		}
+		profileID = profile.ID
+		return nil
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, nil
 		}
 		return uuid.Nil, apperr.Internal(err)
 	}
-	return profile.ID, nil
+	return profileID, nil
 }
 
 // DoctorIDForUser returns uuid.Nil in v2 — doctors are profiles too and

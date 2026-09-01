@@ -50,23 +50,27 @@ func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appoi
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		q := db.New(tx)
 
-		profileID := nilUUIDPtr(query.PatientID)
+		filter := query.PatientID
+		if filter == "" {
+			filter = query.DoctorID
+		}
+		profileID := nilUUIDPtr(filter)
 		status := query.Status
 
 		var e error
 		total, e = q.CountAppointments(ctx, db.CountAppointmentsParams{
-			ProfileID: derefUUIDPtr(profileID),
-			Status:    status,
+			Column1: derefUUIDPtr(profileID),
+			Column2: status,
 		})
 		if e != nil {
 			return apperr.Internal(e)
 		}
 
 		rows, e := q.ListAppointments(ctx, db.ListAppointmentsParams{
-			ProfileID: derefUUIDPtr(profileID),
-			Status:    status,
-			Limit:     int32(query.Limit),
-			Offset:    int32(query.Offset),
+			Column1: derefUUIDPtr(profileID),
+			Column2: status,
+			Limit:   int32(query.Limit),
+			Offset:  int32(query.Offset),
 		})
 		if e != nil {
 			return apperr.Internal(e)
@@ -108,8 +112,8 @@ type bookingError struct{ err error }
 func (e *bookingError) Error() string { return e.err.Error() }
 
 func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, error) {
-	defer tx.Rollback(ctx)
-
+	// No Rollback here: the caller (ScopedPool.WithSchema) owns the
+	// transaction lifecycle and commits/rolls back on return.
 	q := db.New(tx)
 
 	if p.PatientUser != nil {
@@ -158,6 +162,9 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 		AppointmentTypeID: appointmentTypeID,
 		ScheduledStart:    p.StartTime,
 		ScheduledEnd:      p.EndTime,
+		Status:            "scheduled",
+		VisitNotes:        pgTextFromString(p.Notes),
+		Version:           1,
 		CreatedBy:         p.CreatedBy,
 	})
 	if err != nil {

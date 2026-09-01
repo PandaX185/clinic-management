@@ -15,17 +15,18 @@ import (
 
 const countAppointments = `-- name: CountAppointments :one
 SELECT COUNT(*) FROM appointments
-WHERE (profile_id = $1 OR doctor_profile_id = $1)
-  AND status = ANY($2)
+WHERE (CAST($1 AS UUID) = '00000000-0000-0000-0000-000000000000'
+       OR profile_id = $1 OR doctor_profile_id = $1)
+  AND (CAST($2 AS VARCHAR) = '' OR status = CAST($2 AS VARCHAR))
 `
 
 type CountAppointmentsParams struct {
-	ProfileID uuid.UUID
-	Status    string
+	Column1 uuid.UUID
+	Column2 string
 }
 
 func (q *Queries) CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countAppointments, arg.ProfileID, arg.Status)
+	row := q.db.QueryRow(ctx, countAppointments, arg.Column1, arg.Column2)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -133,23 +134,24 @@ SELECT id, profile_id, doctor_profile_id, appointment_type_id,
     visit_notes, follow_up_date, cancellation_reason,
     version, created_by, created_at, updated_at
 FROM appointments
-WHERE (profile_id = $1 OR doctor_profile_id = $1)
-  AND status = ANY($2)
+WHERE (CAST($1 AS UUID) = '00000000-0000-0000-0000-000000000000'
+       OR profile_id = $1 OR doctor_profile_id = $1)
+  AND (CAST($2 AS VARCHAR) = '' OR status = CAST($2 AS VARCHAR))
 ORDER BY scheduled_start DESC
 LIMIT $3 OFFSET $4
 `
 
 type ListAppointmentsParams struct {
-	ProfileID uuid.UUID
-	Status    string
-	Limit     int32
-	Offset    int32
+	Column1 uuid.UUID
+	Column2 string
+	Limit   int32
+	Offset  int32
 }
 
 func (q *Queries) ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error) {
 	rows, err := q.db.Query(ctx, listAppointments,
-		arg.ProfileID,
-		arg.Status,
+		arg.Column1,
+		arg.Column2,
 		arg.Limit,
 		arg.Offset,
 	)

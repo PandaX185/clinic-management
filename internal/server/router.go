@@ -11,6 +11,7 @@ import (
 
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
 	auth "github.com/PandaX185/clinic-management/internal/auth"
+	directory "github.com/PandaX185/clinic-management/internal/directory"
 	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
@@ -27,6 +28,7 @@ type RouterDeps struct {
 	TenantH         *tenant.Handler
 	TenantSvc       *tenant.Service
 	ProfileResolver ProfileResolver
+	DirectoryH      *directory.Handler
 	Metrics         *metrics.Metrics
 }
 
@@ -96,8 +98,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	authProtected := global.Group("/auth")
 	deps.AuthH.RegisterProtectedRoutes(authProtected) // GET /auth/me, /auth/tenants
 
-	// Patients are now profiles — patient CRUD lives in tenant/profile endpoints
-	// Doctors are now profiles with schedules/exceptions — endpoints moved there
+	deps.DirectoryH.RegisterRoutes(protected) // profiles, doctors, appointment types
 
 	deps.AppointH.RegisterRoutes(protected)
 

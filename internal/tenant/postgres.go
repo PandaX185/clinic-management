@@ -73,17 +73,37 @@ func (s *PostgresStore) SetTenantActive(ctx context.Context, id uuid.UUID, activ
 	return nil
 }
 
-// TenantsForUser returns all active tenants. In v2, which tenants a user
-// belongs to is determined by ProfileStore queries (tenant-scoped profiles).
-// This method returns all tenants so the caller can filter by profile.
+// TenantsForUser returns the tenants the user has an explicit membership in
+// (user_tenants index, maintained as staff are bound to clinics). Users with
+// no memberships are patients and get the browse-all behavior from the
+// service layer.
 func (s *PostgresStore) TenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
-	rows, err := db.New(s.pool).ListTenants(ctx)
+	rows, err := db.New(s.pool).ListUserTenantIDs(ctx, userID)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
+	if len(rows) == 0 {
+		return []Tenant{}, nil
+	}
 	out := make([]Tenant, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, Tenant{ID: r.ID, Name: r.Name, Slug: r.Slug, IsActive: r.Status == "active"})
+	for _, tid := range rows {
+		t, err := s.GetTenantByID(ctx, tid)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
 	}
 	return out, nil
+}
+
+// RecordMembership records that userID belongs to the tenant, so the user's
+// "my clinics" list reflects real memberships. Idempotent.
+func (s *PostgresStore) RecordMembership(ctx context.Context, userID, tenantID uuid.UUID) error {
+	if err := db.New(s.pool).EnsureUserTenantMembership(ctx, db.EnsureUserTenantMembershipParams{
+		UserID:   userID,
+		TenantID: tenantID,
+	}); err != nil {
+		return apperr.Internal(err)
+	}
+	return nil
 }

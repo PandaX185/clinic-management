@@ -10,6 +10,7 @@ import (
 
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
 	auth "github.com/PandaX185/clinic-management/internal/auth"
+	directory "github.com/PandaX185/clinic-management/internal/directory"
 	server "github.com/PandaX185/clinic-management/internal/server"
 	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 
@@ -57,6 +58,10 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	aptSvc := appt.NewServiceWithIdentity(aptRepo, nil, appt.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
 	aptH := appt.NewHandler(aptSvc)
 
+	dirRepo := directory.NewPostgresRepo(d.Pool)
+	dirSvc := directory.NewService(dirRepo)
+	dirH := directory.NewHandler(dirSvc)
+
 	r := server.NewRouter(server.RouterDeps{
 		Cfg:             d.Cfg,
 		RDB:             d.RDB,
@@ -67,6 +72,7 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 		TenantH:         tenantH,
 		TenantSvc:       tenantSvc,
 		ProfileResolver: profileStore,
+		DirectoryH:      dirH,
 		Metrics:         m,
 	})
 

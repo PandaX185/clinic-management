@@ -143,6 +143,84 @@ definitions:
       phone:
         type: string
     type: object
+  directory.createProfileInput:
+    properties:
+      display_name:
+        maxLength: 255
+        type: string
+      role:
+        type: string
+      user_id:
+        type: string
+    required:
+    - display_name
+    - user_id
+    type: object
+  directory.profileResponse:
+    properties:
+      created_at:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      user_id:
+        type: string
+    type: object
+  directory.profilesListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/directory.profileResponse'
+        type: array
+    type: object
+  directory.typeInput:
+    properties:
+      color:
+        type: string
+      duration_minutes:
+        type: integer
+      icon:
+        type: string
+      name:
+        maxLength: 100
+        type: string
+      price:
+        type: string
+    required:
+    - duration_minutes
+    - name
+    type: object
+  directory.typeResponse:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      duration_minutes:
+        type: integer
+      icon:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      price:
+        type: string
+    type: object
+  directory.typesListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/directory.typeResponse'
+        type: array
+    type: object
   tenant.bindStaffInput:
     properties:
       role:
@@ -197,6 +275,114 @@ info:
   title: Clinic Management API
   version: 1.0.0
 paths:
+  /appointment-types:
+    get:
+      description: Returns the bookable services defined in the active clinic.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/directory.typesListResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List appointment types
+      tags:
+      - directory
+    post:
+      consumes:
+      - application/json
+      description: Defines a new bookable service in the active clinic. Admin only.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment type
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/directory.typeInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/directory.typeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create appointment type
+      tags:
+      - directory
+  /appointment-types/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing bookable service in the active clinic. Admin
+        only.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Appointment type id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Appointment type
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/directory.typeInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/directory.typeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update appointment type
+      tags:
+      - directory
   /appointments:
     get:
       description: Lists appointments in the active tenant with optional filters and
@@ -678,6 +864,110 @@ paths:
       summary: List user's tenants
       tags:
       - auth
+  /doctors:
+    get:
+      description: Returns all profiles holding the doctor role in the active clinic.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/directory.profilesListResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List doctors
+      tags:
+      - directory
+  /profiles:
+    get:
+      description: Returns every person registered in the active clinic (X-Tenant-ID),
+        with their roles.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/directory.profilesListResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List clinic profiles
+      tags:
+      - directory
+    post:
+      consumes:
+      - application/json
+      description: Registers an existing user as a member of the active clinic and
+        assigns them a role. Admin only.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Profile details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/directory.createProfileInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/directory.profileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Register a profile
+      tags:
+      - directory
   /tenants:
     get:
       description: Returns all active clinics. Patients may browse the full registry.

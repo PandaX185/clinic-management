@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const assignRoleToProfile = `-- name: AssignRoleToProfile :exec
@@ -29,6 +30,68 @@ func (q *Queries) AssignRoleToProfile(ctx context.Context, arg AssignRoleToProfi
 	return err
 }
 
+const createAppointmentType = `-- name: CreateAppointmentType :one
+INSERT INTO appointment_types (name, duration_minutes, price, color, icon)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, name, duration_minutes, price, color, icon, is_active, created_at, updated_at
+`
+
+type CreateAppointmentTypeParams struct {
+	Name            string
+	DurationMinutes int32
+	Price           pgtype.Numeric
+	Color           *string
+	Icon            *string
+}
+
+func (q *Queries) CreateAppointmentType(ctx context.Context, arg CreateAppointmentTypeParams) (AppointmentType, error) {
+	row := q.db.QueryRow(ctx, createAppointmentType,
+		arg.Name,
+		arg.DurationMinutes,
+		arg.Price,
+		arg.Color,
+		arg.Icon,
+	)
+	var i AppointmentType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DurationMinutes,
+		&i.Price,
+		&i.Color,
+		&i.Icon,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createProfile = `-- name: CreateProfile :one
+INSERT INTO profiles (user_id, display_name)
+VALUES ($1, $2)
+RETURNING id, user_id, display_name, status, created_at, updated_at
+`
+
+type CreateProfileParams struct {
+	UserID      uuid.UUID
+	DisplayName string
+}
+
+func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error) {
+	row := q.db.QueryRow(ctx, createProfile, arg.UserID, arg.DisplayName)
+	var i Profile
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.DisplayName,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteExpiredIdempotencyKeys = `-- name: DeleteExpiredIdempotencyKeys :execrows
 DELETE FROM idempotency_keys WHERE expires_at < now()
 `
@@ -39,6 +102,27 @@ func (q *Queries) DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, erro
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getAppointmentTypeByID = `-- name: GetAppointmentTypeByID :one
+SELECT id, name, duration_minutes, price, color, icon, is_active, created_at, updated_at FROM appointment_types WHERE id = $1
+`
+
+func (q *Queries) GetAppointmentTypeByID(ctx context.Context, id uuid.UUID) (AppointmentType, error) {
+	row := q.db.QueryRow(ctx, getAppointmentTypeByID, id)
+	var i AppointmentType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DurationMinutes,
+		&i.Price,
+		&i.Color,
+		&i.Icon,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getIdempotentResponse = `-- name: GetIdempotentResponse :one
@@ -176,6 +260,101 @@ func (q *Queries) ListAppointmentTypes(ctx context.Context) ([]AppointmentType, 
 	return items, nil
 }
 
+const listProfiles = `-- name: ListProfiles :many
+SELECT
+    p.id,
+    p.user_id,
+    p.display_name,
+    p.status,
+    p.created_at,
+    p.updated_at,
+    COALESCE(array_agg(r.name ORDER BY r.name) FILTER (WHERE r.name IS NOT NULL), ARRAY[]::varchar[])::text[] AS role_names
+FROM profiles p
+LEFT JOIN profile_roles pr ON pr.profile_id = p.id
+LEFT JOIN roles r ON r.id = pr.role_id
+GROUP BY p.id
+ORDER BY p.display_name
+`
+
+type ListProfilesRow struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	DisplayName string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	RoleNames   []string
+}
+
+func (q *Queries) ListProfiles(ctx context.Context) ([]ListProfilesRow, error) {
+	rows, err := q.db.Query(ctx, listProfiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProfilesRow{}
+	for rows.Next() {
+		var i ListProfilesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DisplayName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RoleNames,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProfilesByRole = `-- name: ListProfilesByRole :many
+SELECT
+    p.id,
+    p.user_id,
+    p.display_name,
+    p.status,
+    p.created_at,
+    p.updated_at
+FROM profiles p
+JOIN profile_roles pr ON pr.profile_id = p.id
+JOIN roles r ON r.id = pr.role_id AND r.name = $1
+ORDER BY p.display_name
+`
+
+func (q *Queries) ListProfilesByRole(ctx context.Context, name string) ([]Profile, error) {
+	rows, err := q.db.Query(ctx, listProfilesByRole, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Profile{}
+	for rows.Next() {
+		var i Profile
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DisplayName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserRoles = `-- name: ListUserRoles :many
 SELECT r.id, r.name
 FROM roles r
@@ -206,6 +385,51 @@ func (q *Queries) ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAppointmentType = `-- name: UpdateAppointmentType :one
+UPDATE appointment_types
+SET name = $2,
+    duration_minutes = $3,
+    price = $4,
+    color = $5,
+    icon = $6,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, name, duration_minutes, price, color, icon, is_active, created_at, updated_at
+`
+
+type UpdateAppointmentTypeParams struct {
+	ID              uuid.UUID
+	Name            string
+	DurationMinutes int32
+	Price           pgtype.Numeric
+	Color           *string
+	Icon            *string
+}
+
+func (q *Queries) UpdateAppointmentType(ctx context.Context, arg UpdateAppointmentTypeParams) (AppointmentType, error) {
+	row := q.db.QueryRow(ctx, updateAppointmentType,
+		arg.ID,
+		arg.Name,
+		arg.DurationMinutes,
+		arg.Price,
+		arg.Color,
+		arg.Icon,
+	)
+	var i AppointmentType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DurationMinutes,
+		&i.Price,
+		&i.Color,
+		&i.Icon,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertPatientProfile = `-- name: UpsertPatientProfile :one

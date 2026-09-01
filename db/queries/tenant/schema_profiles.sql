@@ -27,6 +27,39 @@ ON CONFLICT (user_id) DO UPDATE SET
     updated_at = now()
 RETURNING *;
 
+-- name: ListProfiles :many
+SELECT
+    p.id,
+    p.user_id,
+    p.display_name,
+    p.status,
+    p.created_at,
+    p.updated_at,
+    COALESCE(array_agg(r.name ORDER BY r.name) FILTER (WHERE r.name IS NOT NULL), ARRAY[]::varchar[])::text[] AS role_names
+FROM profiles p
+LEFT JOIN profile_roles pr ON pr.profile_id = p.id
+LEFT JOIN roles r ON r.id = pr.role_id
+GROUP BY p.id
+ORDER BY p.display_name;
+
+-- name: CreateProfile :one
+INSERT INTO profiles (user_id, display_name)
+VALUES ($1, $2)
+RETURNING *;
+
+-- name: ListProfilesByRole :many
+SELECT
+    p.id,
+    p.user_id,
+    p.display_name,
+    p.status,
+    p.created_at,
+    p.updated_at
+FROM profiles p
+JOIN profile_roles pr ON pr.profile_id = p.id
+JOIN roles r ON r.id = pr.role_id AND r.name = $1
+ORDER BY p.display_name;
+
 -- RBAC (tenant-specific) ---------------------------------------------
 
 CREATE TABLE roles (
@@ -83,6 +116,25 @@ CREATE TABLE appointment_types (
 
 -- name: ListAppointmentTypes :many
 SELECT * FROM appointment_types WHERE is_active = true ORDER BY name;
+
+-- name: GetAppointmentTypeByID :one
+SELECT * FROM appointment_types WHERE id = $1;
+
+-- name: CreateAppointmentType :one
+INSERT INTO appointment_types (name, duration_minutes, price, color, icon)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: UpdateAppointmentType :one
+UPDATE appointment_types
+SET name = $2,
+    duration_minutes = $3,
+    price = $4,
+    color = $5,
+    icon = $6,
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
 
 -- Appointments --------------------------------------------------------
 

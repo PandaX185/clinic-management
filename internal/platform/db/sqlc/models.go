@@ -137,3 +137,8 @@ type UserRefreshToken struct {
 	ReplacedByHash *string
 	CreatedAt      time.Time
 }
+
+type UserTenant struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}

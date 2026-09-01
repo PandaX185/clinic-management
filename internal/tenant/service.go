@@ -42,6 +42,7 @@ type Store interface {
 	ListTenants(ctx context.Context) ([]Tenant, error)
 	SetTenantActive(ctx context.Context, id uuid.UUID, active bool) error
 	TenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
+	RecordMembership(ctx context.Context, userID, tenantID uuid.UUID) error
 	Pool() *pgxpool.Pool
 }
 
@@ -63,8 +64,10 @@ func NewService(store Store, profile ProfileStore, pool PoolProvider) *Service {
 	return &Service{store: store, profile: profile, pool: pool}
 }
 
-// Create provisions a new clinic: tenants row + physical schema.
-func (s *Service) Create(ctx context.Context, name, rawSlug string) (*Tenant, error) {
+// Create provisions a new clinic: tenants row + physical schema. The
+// creating global super-admin is bound as the clinic's first admin so the
+// per-clinic admin role exists to onboard further staff.
+func (s *Service) Create(ctx context.Context, creatorID uuid.UUID, name, rawSlug string) (*Tenant, error) {
 	slug := normalizeSlug(rawSlug)
 	if !slugRe.MatchString(slug) {
 		return nil, apperr.Invalid("slug must be lowercase letters, digits and underscores, starting with a letter")
@@ -78,6 +81,12 @@ func (s *Service) Create(ctx context.Context, name, rawSlug string) (*Tenant, er
 	}
 	if err := database.ProvisionTenant(ctx, s.pool.Pool(), slug); err != nil {
 		return nil, apperr.Internal(err)
+	}
+	if err := s.bindRole(ctx, creatorID, t, "admin"); err != nil {
+		return nil, err
+	}
+	if err := s.store.RecordMembership(ctx, creatorID, t.ID); err != nil {
+		return nil, err
 	}
 	return t, nil
 }
@@ -133,12 +142,19 @@ func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID, rol
 	if !t.IsActive {
 		return apperr.Invalid("tenant is not active")
 	}
+	if err := s.bindRole(ctx, userID, t, role); err != nil {
+		return err
+	}
+	return s.store.RecordMembership(ctx, userID, tenantID)
+}
+
+func (s *Service) bindRole(ctx context.Context, userID uuid.UUID, t *Tenant, role string) error {
 	role = strings.ToLower(strings.TrimSpace(role))
 	if !standardRoles[role] {
 		return apperr.Invalid("unknown role: " + role)
 	}
 
-	return database.WithTenantSchema(ctx, s.pool.Pool(), t.Slug, func(q db.DBTX) error {
+	err := database.WithTenantSchema(ctx, s.pool.Pool(), t.Slug, func(q db.DBTX) error {
 		prof, err := db.New(q).UpsertPatientProfile(ctx, db.UpsertPatientProfileParams{
 			UserID:      userID,
 			DisplayName: role,
@@ -158,6 +174,10 @@ func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID, rol
 			RoleID:    r.ID,
 		})
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func normalizeSlug(s string) string {

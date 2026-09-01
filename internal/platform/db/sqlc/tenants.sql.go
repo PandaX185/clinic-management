@@ -38,6 +38,22 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 	return i, err
 }
 
+const ensureUserTenantMembership = `-- name: EnsureUserTenantMembership :exec
+INSERT INTO user_tenants (user_id, tenant_id)
+VALUES ($1, $2)
+ON CONFLICT (user_id, tenant_id) DO NOTHING
+`
+
+type EnsureUserTenantMembershipParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) EnsureUserTenantMembership(ctx context.Context, arg EnsureUserTenantMembershipParams) error {
+	_, err := q.db.Exec(ctx, ensureUserTenantMembership, arg.UserID, arg.TenantID)
+	return err
+}
+
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT id, name, slug, status, created_at, updated_at FROM tenants WHERE id = $1
 `
@@ -98,6 +114,30 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserTenantIDs = `-- name: ListUserTenantIDs :many
+SELECT tenant_id FROM user_tenants WHERE user_id = $1
+`
+
+func (q *Queries) ListUserTenantIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserTenantIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var tenant_id uuid.UUID
+		if err := rows.Scan(&tenant_id); err != nil {
+			return nil, err
+		}
+		items = append(items, tenant_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -110,7 +110,12 @@ func (h *Handler) Create(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	t, err := h.svc.Create(c.Request.Context(), in.Name, in.Slug)
+	creatorID, err := parseUserID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	t, err := h.svc.Create(c.Request.Context(), creatorID, in.Name, in.Slug)
 	if err != nil {
 		c.Error(err)
 		return

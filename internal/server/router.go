@@ -54,21 +54,41 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	r.Use(SecurityHeaders())
 	r.Use(BodyLimit(maxBodyBytes))
 
+	// Instrumentation: /metrics is served by the same gin engine so the app
+	// exposes a single HTTP server.
+	if deps.Metrics != nil {
+		r.GET("/metrics", gin.WrapH(deps.Metrics.Handler()))
+	}
+
 	apiV1 := r.Group("/api/v1")
 	apiV1.Use(swaggerExtension())
 
 	deps.AuthH.RegisterRoutes(apiV1)
 
-	// Global (auth-only) routes: tenant browsing needs no X-Tenant-ID.
+	// Global (auth-only) routes: authenticated identity but no X-Tenant-ID.
 	global := apiV1.Group("")
-	global.Use(auth.Middleware(deps.AuthSvc))
+	global.Use(auth.JwtMiddleware(deps.AuthSvc))
+
+	// Global super-admin only: provisioning clinics has no tenant context to
+	// resolve an admin role from, so it is gated on the global users.is_admin
+	// flag rather than a per-clinic role.
+	globalAdmin := global.Group("")
+	globalAdmin.Use(auth.RequireGlobalAdmin(deps.AuthSvc))
+	globalAdmin.POST("/tenants", deps.TenantH.Create)
 
 	// Tenant-scoped routes: X-Tenant-ID required; role resolved per clinic.
 	protected := apiV1.Group("")
-	protected.Use(auth.Middleware(deps.AuthSvc))
+	protected.Use(auth.JwtMiddleware(deps.AuthSvc))
 	protected.Use(TenantMiddleware(deps.TenantSvc, deps.ProfileResolver))
 
-	deps.TenantH.RegisterRoutes(global) // GET /tenants — browse clinics
+	// Per-clinic admin: resolved against the active tenant's roles.
+	admin := protected.Group("")
+	admin.Use(auth.RequireRoles("admin"))
+	admin.POST("/tenants/:id/staff", deps.TenantH.BindStaff)
+
+	deps.TenantH.RegisterRoutes(global) // GET /tenants, /tenants/mine — browse clinics
+	authProtected := global.Group("/auth")
+	deps.AuthH.RegisterProtectedRoutes(authProtected) // GET /auth/me, /auth/tenants
 
 	// Patients are now profiles — patient CRUD lives in tenant/profile endpoints
 	// Doctors are now profiles with schedules/exceptions — endpoints moved there

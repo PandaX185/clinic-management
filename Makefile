@@ -46,16 +46,16 @@ sqlc:
 	sqlc generate
 
 migrate-up:
-	migrate -path ./db/migrations -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" up
+	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" up
 
 migrate-down:
-	migrate -path ./db/migrations -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" down 1
+	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" down 1
 
 docker-build:
 	docker build -t clinic-management-api .
 
 docker-up:
-	docker compose up -d --build
+	docker compose up -d
 
 docker-down:
 	docker compose down

@@ -7,6 +7,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/PandaX185/clinic-management/internal/platform/retry"
 )
 
 type Client struct {
@@ -22,14 +24,24 @@ const (
 	ConsumerName  = "notification-worker"
 )
 
-func New(ctx context.Context, url string) (*Client, error) {
-	conn, err := nats.Connect(url,
-		nats.MaxReconnects(-1),
-		nats.ReconnectWait(2*time.Second),
-		nats.Timeout(5*time.Second),
-	)
+func New(ctx context.Context, url string, rc retry.Config) (*Client, error) {
+	rc = retry.WithDefaults(rc)
+
+	var conn *nats.Conn
+	err := retry.Do(ctx, rc, func(ctx context.Context) error {
+		c, err := nats.Connect(url,
+			nats.MaxReconnects(-1),
+			nats.ReconnectWait(2*time.Second),
+			nats.Timeout(rc.Timeout),
+		)
+		if err != nil {
+			return err
+		}
+		conn = c
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("connect nats: %w", err)
+		return nil, fmt.Errorf("connect nats (attempts=%d): %w", rc.Attempts, err)
 	}
 
 	js, err := jetstream.New(conn)

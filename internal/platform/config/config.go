@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
+
+	"github.com/PandaX185/clinic-management/internal/platform/retry"
 )
 
 type Config struct {
@@ -16,6 +18,12 @@ type Config struct {
 	DatabaseURL string `env:"DATABASE_URL,notEmpty"`
 	RedisURL    string `env:"REDIS_URL" envDefault:"redis://localhost:6379"`
 	NATSURL     string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
+
+	// Connection bootstrap: every external dependency shares the same
+	// context + timeout + retry semantics, all operator-configurable.
+	DBConnect    retry.Config `envPrefix:"DB_CONNECT_"`
+	RedisConnect retry.Config `envPrefix:"REDIS_CONNECT_"`
+	NATSConnect  retry.Config `envPrefix:"NATS_CONNECT_"`
 
 	JWTSecret        string        `env:"JWT_SECRET,notEmpty"`
 	JWTRefreshSecret string        `env:"JWT_REFRESH_SECRET,notEmpty"`

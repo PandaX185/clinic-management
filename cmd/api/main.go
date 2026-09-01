@@ -21,9 +21,11 @@ import (
 	_ "github.com/PandaX185/clinic-management/docs"
 
 	"github.com/PandaX185/clinic-management/internal/app/wiring"
+	appt "github.com/PandaX185/clinic-management/internal/appointment"
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	"github.com/PandaX185/clinic-management/internal/platform/logger"
+	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
 	redisclient "github.com/PandaX185/clinic-management/internal/platform/redis"
 )
 
@@ -62,11 +64,29 @@ func run() error {
 		}
 	}()
 
+	// NATS is optional: the app boots and serves traffic without it, with
+	// /ready reporting the messaging dependency as unavailable.
+	var natsCli *natsclient.Client
+	natsCli, natsErr := natsclient.New(ctx, cfg.NATSURL, cfg.NATSConnect)
+	if natsErr != nil {
+		log.Warn("nats connection failed; running without messaging", "error", natsErr.Error())
+	} else {
+		defer natsCli.Close()
+		log.Info("connected to nats")
+	}
+
+	// Expired idempotency keys are purged on an interval derived from the key
+	// TTL so the table stays bounded (BR-07).
+	cleaner := appt.NewIdempotencyCleaner(pool, cfg.IdempotencyTTL)
+	go cleaner.Run(ctx, log)
+	defer cleaner.Stop()
+
 	router, _, err := wiring.Build(wiring.Deps{
 		Cfg:  cfg,
 		Log:  log,
 		Pool: pool,
 		RDB:  rdb,
+		NATS: natsCli,
 	})
 	if err != nil {
 		return err

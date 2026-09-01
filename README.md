@@ -25,7 +25,7 @@ Multi-clinic appointment backend in Go — each clinic gets its own isolated Pos
 
 | Layer        | Tech |
 |--------------|------|
-| Language     | Go 1.25 |
+| Language     | Go 1.26 |
 | Router       | gin (chi removed) |
 | HTTP Server  | net/http + single gin engine (incl. /metrics) |
 | Database     | PostgreSQL 16 + pgx/v5 + sqlc |

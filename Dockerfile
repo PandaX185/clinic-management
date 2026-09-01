@@ -1,15 +1,16 @@
-# syntax=docker/dockerfile:1
+# Legacy-builder compatible: no BuildKit-only directives so `docker build`
+# works without DOCKER_BUILDKIT=1 support in the daemon.
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 WORKDIR /src
 
+# go.mod/go.sum change rarely; keeping this its own layer means unchanged
+# deps are rebuilt from cache even on legacy builders.
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+RUN go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/api ./cmd/api
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app

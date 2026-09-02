@@ -9,7 +9,9 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
-	auth "github.com/PandaX185/clinic-management/internal/auth"
+	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
+	authrepo "github.com/PandaX185/clinic-management/internal/auth/repo"
+	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	directory "github.com/PandaX185/clinic-management/internal/directory"
 	server "github.com/PandaX185/clinic-management/internal/server"
 	tenant "github.com/PandaX185/clinic-management/internal/tenant"
@@ -44,10 +46,10 @@ type Deps struct {
 func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	m := metrics.New()
 
-	authRepo := auth.NewPostgresRepository(d.Pool)
-	tokens := auth.NewTokenManager(d.Cfg.JWTSecret, d.Cfg.JWTRefreshSecret, d.Cfg.AccessTokenTTL, d.Cfg.RefreshTokenTTL)
-	authSvc := auth.NewService(authRepo, tokens)
-	authH := auth.NewHandler(authSvc)
+	authRepo := authrepo.NewPostgresRepository(d.Pool)
+	tokens := authsvc.NewTokenManager(d.Cfg.JWTSecret, d.Cfg.JWTRefreshSecret, d.Cfg.AccessTokenTTL, d.Cfg.RefreshTokenTTL)
+	authSvc := authsvc.NewService(authRepo, tokens)
+	authH := authapi.NewHandler(authSvc)
 
 	tenantStore := tenant.NewPostgresStore(d.Pool)
 	profileStore := tenant.NewScopedProfileStore(d.Pool)

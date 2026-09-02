@@ -14,9 +14,9 @@ import (
 // handlers. Keeping them here lets every HTTP layer share one source of
 // truth without importing the auth feature package.
 const (
-	CtxUserID  = "auth_user_id"
-	CtxRoles   = "auth_roles"
-	CtxClaims  = "auth_claims"
+	CtxUserID = "auth_user_id"
+	CtxRoles  = "auth_roles"
+	CtxClaims = "auth_claims"
 )
 
 // ParseUUID parses a remote id string, mapping malformed input to a 400.

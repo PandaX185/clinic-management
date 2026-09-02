@@ -8,7 +8,7 @@ import (
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 
-	auth "github.com/PandaX185/clinic-management/internal/auth"
+	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 )
 
 type Handler struct {
@@ -65,15 +65,15 @@ func (h *Handler) RegisterRoutes(protected *gin.RouterGroup) {
 	g := protected.Group("/profiles")
 	{
 		g.GET("", h.ListProfiles)
-		g.POST("", auth.RequireRoles("admin"), h.CreateProfile)
+		g.POST("", authapi.RequireRoles("admin"), h.CreateProfile)
 	}
 	protected.GET("/doctors", h.ListDoctors)
 
 	tg := protected.Group("/appointment-types")
 	{
 		tg.GET("", h.ListTypes)
-		tg.POST("", auth.RequireRoles("admin"), h.CreateType)
-		tg.PUT("/:id", auth.RequireRoles("admin"), h.UpdateType)
+		tg.POST("", authapi.RequireRoles("admin"), h.CreateType)
+		tg.PUT("/:id", authapi.RequireRoles("admin"), h.UpdateType)
 	}
 }
 

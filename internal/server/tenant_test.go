@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	auth "github.com/PandaX185/clinic-management/internal/auth"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 	"github.com/google/uuid"
 )
 
@@ -48,14 +48,14 @@ func setupRouter(resolver TenantResolver, profiles ProfileResolver) (*gin.Engine
 	protected := r.Group("/api/v1")
 	protected.Use(func(c *gin.Context) {
 		// Simulate auth.Middleware's claims storage.
-		c.Set(auth.CtxUserID, c.GetHeader("X-Test-User"))
+		c.Set(httpctx.CtxUserID, c.GetHeader("X-Test-User"))
 		c.Next()
 	})
 	protected.Use(TenantMiddleware(resolver, profiles))
 	protected.GET("/ping", func(c *gin.Context) {
 		slug := c.GetString(CtxTenantSlug)
 		role := ""
-		if raw, ok := c.Get(auth.CtxRoles); ok {
+		if raw, ok := c.Get(httpctx.CtxRoles); ok {
 			role = raw.([]string)[0]
 		}
 		c.JSON(http.StatusOK, gin.H{"slug": slug, "role": role})

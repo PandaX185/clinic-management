@@ -7,16 +7,16 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/auth"
+	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 	"github.com/PandaX185/clinic-management/internal/tenant"
 )
 
-// tenantMembershipProvider implements auth.TenantMembershipProvider using the
+// tenantMembershipProvider implements auth.Service's membership port using the
 // global user_tenants index plus per-tenant role resolution. It lives in the
-// wiring package so the auth package never imports tenant (which already
+// wiring package so the auth feature never imports tenant (which already
 // imports auth for its handler).
 type tenantMembershipProvider struct {
 	pool  *pgxpool.Pool
@@ -26,22 +26,22 @@ type tenantMembershipProvider struct {
 // MembershipsForUser returns the clinics the user is a member of with their
 // primary role in each. Users with no membership get an empty list, matching
 // the /tenants/mine behaviour.
-func (p *tenantMembershipProvider) MembershipsForUser(ctx context.Context, userID uuid.UUID) ([]auth.UserTenant, error) {
+func (p *tenantMembershipProvider) MembershipsForUser(ctx context.Context, userID uuid.UUID) ([]authsvc.UserTenant, error) {
 	tenants, err := p.store.TenantsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	if len(tenants) == 0 {
-		return []auth.UserTenant{}, nil
+		return []authsvc.UserTenant{}, nil
 	}
 
-	out := make([]auth.UserTenant, 0, len(tenants))
+	out := make([]authsvc.UserTenant, 0, len(tenants))
 	for _, t := range tenants {
 		role, err := p.primaryRole(ctx, userID, t.Slug)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, auth.UserTenant{
+		out = append(out, authsvc.UserTenant{
 			TenantID:   t.ID,
 			TenantName: t.Name,
 			TenantSlug: t.Slug,

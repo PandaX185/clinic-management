@@ -10,7 +10,8 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
-	auth "github.com/PandaX185/clinic-management/internal/auth"
+	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
+	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	directory "github.com/PandaX185/clinic-management/internal/directory"
 	tenant "github.com/PandaX185/clinic-management/internal/tenant"
 
@@ -22,8 +23,8 @@ type RouterDeps struct {
 	Cfg             config.Config
 	RDB             *redis.Client
 	Logger          Logger
-	AuthH           *auth.Handler
-	AuthSvc         *auth.Service
+	AuthH           *authapi.Handler
+	AuthSvc         *authsvc.Service
 	AppointH        *appt.Handler
 	TenantH         *tenant.Handler
 	TenantSvc       *tenant.Service
@@ -75,23 +76,23 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 	// Global (auth-only) routes: authenticated identity but no X-Tenant-ID.
 	global := apiV1.Group("")
-	global.Use(auth.JwtMiddleware(deps.AuthSvc))
+	global.Use(authapi.JwtMiddleware(deps.AuthSvc))
 
 	// Global super-admin only: provisioning clinics has no tenant context to
 	// resolve an admin role from, so it is gated on the global users.is_admin
 	// flag rather than a per-clinic role.
 	globalAdmin := global.Group("")
-	globalAdmin.Use(auth.RequireGlobalAdmin(deps.AuthSvc))
+	globalAdmin.Use(authapi.RequireGlobalAdmin(deps.AuthSvc))
 	globalAdmin.POST("/tenants", deps.TenantH.Create)
 
 	// Tenant-scoped routes: X-Tenant-ID required; role resolved per clinic.
 	protected := apiV1.Group("")
-	protected.Use(auth.JwtMiddleware(deps.AuthSvc))
+	protected.Use(authapi.JwtMiddleware(deps.AuthSvc))
 	protected.Use(TenantMiddleware(deps.TenantSvc, deps.ProfileResolver))
 
 	// Per-clinic admin: resolved against the active tenant's roles.
 	admin := protected.Group("")
-	admin.Use(auth.RequireRoles("admin"))
+	admin.Use(authapi.RequireRoles("admin"))
 	admin.POST("/tenants/:id/staff", deps.TenantH.BindStaff)
 
 	deps.TenantH.RegisterRoutes(global) // GET /tenants, /tenants/mine — browse clinics

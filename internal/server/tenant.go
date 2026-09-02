@@ -9,9 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	auth "github.com/PandaX185/clinic-management/internal/auth"
+	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 )
 
 // HeaderTenantID selects the clinic a request acts upon. Login and tenant
@@ -32,13 +33,13 @@ type ProfileResolver interface {
 	RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 }
 
-// authClaimsFrom recovers parsed token claims stored by auth.Middleware.
-func authClaimsFrom(c *gin.Context) *auth.Claims {
-	v, ok := c.Get("auth_claims")
+// authClaimsFrom recovers parsed token claims stored by the JWT middleware.
+func authClaimsFrom(c *gin.Context) *authsvc.Claims {
+	v, ok := c.Get(httpctx.CtxClaims)
 	if !ok {
 		return nil
 	}
-	claims, _ := v.(*auth.Claims)
+	claims, _ := v.(*authsvc.Claims)
 	return claims
 }
 
@@ -110,7 +111,7 @@ func TenantMiddleware(resolver TenantResolver, profiles ProfileResolver) gin.Han
 		var userID uuid.UUID
 		if claims != nil {
 			userID = claims.UserID
-		} else if rawUID, ok := c.Get(auth.CtxUserID); ok {
+		} else if rawUID, ok := c.Get(httpctx.CtxUserID); ok {
 			if s, ok := rawUID.(string); ok {
 				userID, _ = uuid.Parse(s)
 			}
@@ -133,7 +134,7 @@ func TenantMiddleware(resolver TenantResolver, profiles ProfileResolver) gin.Han
 			roles = []string{"patient"} // implicit baseline everywhere
 		}
 
-		c.Set(auth.CtxRoles, roles)
+		c.Set(httpctx.CtxRoles, roles)
 		c.Set(CtxTenantSlug, slug)
 		c.Set("auth_tenant_id", tid)
 		// Pin the schema slug on the request context itself so downstream

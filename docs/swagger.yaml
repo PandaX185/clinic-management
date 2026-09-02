@@ -1,5 +1,18 @@
 basePath: /api/v1
 definitions:
+  api.userResponse:
+    properties:
+      created_at:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phone:
+        type: string
+    type: object
   apperr.ErrorResponse:
     properties:
       error:
@@ -81,68 +94,6 @@ definitions:
       total:
         type: integer
     type: object
-  auth.LoginInput:
-    properties:
-      password:
-        type: string
-      phone:
-        type: string
-    required:
-    - password
-    - phone
-    type: object
-  auth.RegisterInput:
-    properties:
-      full_name:
-        maxLength: 255
-        type: string
-      password:
-        maxLength: 72
-        minLength: 8
-        type: string
-      phone:
-        type: string
-    required:
-    - full_name
-    - password
-    - phone
-    type: object
-  auth.TokenPair:
-    properties:
-      accessToken:
-        type: string
-      expiresIn:
-        format: int64
-        type: integer
-      refreshToken:
-        type: string
-      tokenType:
-        type: string
-    type: object
-  auth.UserTenant:
-    properties:
-      role_name:
-        type: string
-      tenant_id:
-        type: string
-      tenant_name:
-        type: string
-      tenant_slug:
-        type: string
-    type: object
-  auth.userResponse:
-    properties:
-      created_at:
-        type: string
-      full_name:
-        type: string
-      id:
-        type: string
-      is_active:
-        type: boolean
-      phone:
-        type: string
-    type: object
   directory.createProfileInput:
     properties:
       display_name:
@@ -220,6 +171,55 @@ definitions:
         items:
           $ref: '#/definitions/directory.typeResponse'
         type: array
+    type: object
+  service.LoginInput:
+    properties:
+      password:
+        type: string
+      phone:
+        type: string
+    required:
+    - password
+    - phone
+    type: object
+  service.RegisterInput:
+    properties:
+      full_name:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+      phone:
+        type: string
+    required:
+    - full_name
+    - password
+    - phone
+    type: object
+  service.TokenPair:
+    properties:
+      accessToken:
+        type: string
+      expiresIn:
+        format: int64
+        type: integer
+      refreshToken:
+        type: string
+      tokenType:
+        type: string
+    type: object
+  service.UserTenant:
+    properties:
+      role_name:
+        type: string
+      tenant_id:
+        type: string
+      tenant_name:
+        type: string
+      tenant_slug:
+        type: string
     type: object
   tenant.bindStaffInput:
     properties:
@@ -750,14 +750,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/auth.LoginInput'
+          $ref: '#/definitions/service.LoginInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/auth.TokenPair'
+            $ref: '#/definitions/service.TokenPair'
       summary: Login with phone and password
       tags:
       - auth
@@ -793,7 +793,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/auth.userResponse'
+            $ref: '#/definitions/api.userResponse'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -817,7 +817,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/auth.TokenPair'
+            $ref: '#/definitions/service.TokenPair'
       summary: Refresh access token
       tags:
       - auth
@@ -833,14 +833,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/auth.RegisterInput'
+          $ref: '#/definitions/service.RegisterInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/auth.userResponse'
+            $ref: '#/definitions/api.userResponse'
       summary: Register a new patient account
       tags:
       - auth
@@ -857,7 +857,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/auth.UserTenant'
+              $ref: '#/definitions/service.UserTenant'
             type: array
       security:
       - BearerAuth: []

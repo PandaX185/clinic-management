@@ -735,7 +735,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.LoginInput"
+                            "$ref": "#/definitions/service.LoginInput"
                         }
                     }
                 ],
@@ -743,7 +743,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.TokenPair"
+                            "$ref": "#/definitions/service.TokenPair"
                         }
                     }
                 }
@@ -802,7 +802,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.userResponse"
+                            "$ref": "#/definitions/api.userResponse"
                         }
                     }
                 }
@@ -836,7 +836,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.TokenPair"
+                            "$ref": "#/definitions/service.TokenPair"
                         }
                     }
                 }
@@ -862,7 +862,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.RegisterInput"
+                            "$ref": "#/definitions/service.RegisterInput"
                         }
                     }
                 ],
@@ -870,7 +870,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/auth.userResponse"
+                            "$ref": "#/definitions/api.userResponse"
                         }
                     }
                 }
@@ -900,7 +900,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/auth.UserTenant"
+                                "$ref": "#/definitions/service.UserTenant"
                             }
                         }
                     }
@@ -1263,6 +1263,26 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.userResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
         "apperr.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -1383,98 +1403,6 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.LoginInput": {
-            "type": "object",
-            "required": [
-                "password",
-                "phone"
-            ],
-            "properties": {
-                "password": {
-                    "type": "string"
-                },
-                "phone": {
-                    "type": "string"
-                }
-            }
-        },
-        "auth.RegisterInput": {
-            "type": "object",
-            "required": [
-                "full_name",
-                "password",
-                "phone"
-            ],
-            "properties": {
-                "full_name": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "password": {
-                    "type": "string",
-                    "maxLength": 72,
-                    "minLength": 8
-                },
-                "phone": {
-                    "type": "string"
-                }
-            }
-        },
-        "auth.TokenPair": {
-            "type": "object",
-            "properties": {
-                "accessToken": {
-                    "type": "string"
-                },
-                "expiresIn": {
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "refreshToken": {
-                    "type": "string"
-                },
-                "tokenType": {
-                    "type": "string"
-                }
-            }
-        },
-        "auth.UserTenant": {
-            "type": "object",
-            "properties": {
-                "role_name": {
-                    "type": "string"
-                },
-                "tenant_id": {
-                    "type": "string"
-                },
-                "tenant_name": {
-                    "type": "string"
-                },
-                "tenant_slug": {
-                    "type": "string"
-                }
-            }
-        },
-        "auth.userResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "full_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_active": {
-                    "type": "boolean"
-                },
-                "phone": {
-                    "type": "string"
-                }
-            }
-        },
         "directory.createProfileInput": {
             "type": "object",
             "required": [
@@ -1590,6 +1518,78 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/directory.typeResponse"
                     }
+                }
+            }
+        },
+        "service.LoginInput": {
+            "type": "object",
+            "required": [
+                "password",
+                "phone"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RegisterInput": {
+            "type": "object",
+            "required": [
+                "full_name",
+                "password",
+                "phone"
+            ],
+            "properties": {
+                "full_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 8
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.TokenPair": {
+            "type": "object",
+            "properties": {
+                "accessToken": {
+                    "type": "string"
+                },
+                "expiresIn": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "refreshToken": {
+                    "type": "string"
+                },
+                "tokenType": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UserTenant": {
+            "type": "object",
+            "properties": {
+                "role_name": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "tenant_name": {
+                    "type": "string"
+                },
+                "tenant_slug": {
+                    "type": "string"
                 }
             }
         },

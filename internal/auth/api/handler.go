@@ -1,20 +1,20 @@
-package auth
+package api
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
+	"github.com/PandaX185/clinic-management/internal/auth/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 )
 
 type Handler struct {
-	svc *Service
+	svc *service.Service
 }
 
-func NewHandler(svc *Service) *Handler {
+func NewHandler(svc *service.Service) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -40,11 +40,11 @@ func (h *Handler) RegisterProtectedRoutes(g *gin.RouterGroup) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body RegisterInput true "Registration details"
+// @Param input body service.RegisterInput true "Registration details"
 // @Success 201 {object} userResponse
 // @Router /auth/register [post]
 func (h *Handler) Register(c *gin.Context) {
-	var in RegisterInput
+	var in service.RegisterInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
@@ -64,11 +64,11 @@ func (h *Handler) Register(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param input body LoginInput true "Login credentials"
-// @Success 200 {object} TokenPair
+// @Param input body service.LoginInput true "Login credentials"
+// @Success 200 {object} service.TokenPair
 // @Router /auth/login [post]
 func (h *Handler) Login(c *gin.Context) {
-	var in LoginInput
+	var in service.LoginInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
@@ -114,17 +114,12 @@ func (h *Handler) Logout(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} UserTenant
+// @Success 200 {array} service.UserTenant
 // @Router /auth/tenants [get]
 func (h *Handler) ListTenants(c *gin.Context) {
-	uid, ok := c.Get("auth_user_id")
-	if !ok {
-		c.Error(apperr.Unauthorized("missing identity"))
-		return
-	}
-	userID, err := uuid.Parse(uid.(string))
+	userID, err := httpctx.UserID(c)
 	if err != nil {
-		c.Error(apperr.Invalid("invalid user id"))
+		c.Error(apperr.Unauthorized("missing identity"))
 		return
 	}
 	tenants, err := h.svc.ListTenants(c.Request.Context(), userID)
@@ -143,7 +138,7 @@ func (h *Handler) ListTenants(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param input body object true "Refresh token" example:{"refresh_token":"<token>"}
-// @Success 200 {object} TokenPair
+// @Success 200 {object} service.TokenPair
 // @Router /auth/refresh [post]
 func (h *Handler) Refresh(c *gin.Context) {
 	var req struct {
@@ -172,43 +167,15 @@ func (h *Handler) Refresh(c *gin.Context) {
 // @Success 200 {object} userResponse
 // @Router /auth/me [get]
 func (h *Handler) Me(c *gin.Context) {
-	uid, _ := c.Get(CtxUserID)
-	if uid == nil {
-		c.Error(apperr.Unauthorized("missing identity"))
-		return
-	}
-	userID, ok := uid.(string)
-	if !ok {
-		c.Error(apperr.Unauthorized("invalid identity"))
-		return
-	}
-	uidParsed, err := uuid.Parse(userID)
+	uid, err := httpctx.UserID(c)
 	if err != nil {
-		c.Error(apperr.Unauthorized("invalid identity"))
+		c.Error(err)
 		return
 	}
-	user, err := h.svc.Me(c.Request.Context(), uidParsed)
+	user, err := h.svc.Me(c.Request.Context(), uid)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, toUserResponse(user))
-}
-
-func toUserResponse(u *User) userResponse {
-	return userResponse{
-		ID:        u.ID.String(),
-		Phone:     u.Phone,
-		Name:      u.FullName,
-		IsActive:  u.IsActive,
-		CreatedAt: u.CreatedAt.Format(time.RFC3339),
-	}
-}
-
-type userResponse struct {
-	ID        string `json:"id"`
-	Phone     string `json:"phone"`
-	Name      string `json:"full_name"`
-	IsActive  bool   `json:"is_active"`
-	CreatedAt string `json:"created_at"`
 }

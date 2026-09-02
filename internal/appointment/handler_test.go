@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	auth "github.com/PandaX185/clinic-management/internal/auth"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 )
 
 // newGateRouter mounts the appointment routes behind a stub auth that injects
@@ -19,8 +19,8 @@ func newGateRouter(roles ...string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
-		c.Set(auth.CtxUserID, "11111111-1111-1111-1111-111111111111")
-		c.Set(auth.CtxRoles, roles)
+		c.Set(httpctx.CtxUserID, "11111111-1111-1111-1111-111111111111")
+		c.Set(httpctx.CtxRoles, roles)
 		c.Next()
 	})
 	h := NewHandler(nil)

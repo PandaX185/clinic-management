@@ -1,4 +1,8 @@
-package auth
+// Package service owns the auth application boundary: the use cases, the
+// domain types they traffic in, and the Repository port that persistence
+// adapters must satisfy. The HTTP layer (api) and persistence adapters (repo)
+// both depend on this package, never the other way around.
+package service
 
 import (
 	"time"
@@ -38,6 +42,16 @@ type TokenPair struct {
 	RefreshToken string
 	TokenType    string
 	ExpiresIn    int64
+}
+
+// UserTenant represents a tenant that a user has access to, with their role.
+// It is produced by the membership provider / repository and serialized by
+// the HTTP layer.
+type UserTenant struct {
+	TenantID   uuid.UUID `json:"tenant_id"`
+	TenantName string    `json:"tenant_name"`
+	TenantSlug string    `json:"tenant_slug"`
+	RoleName   string    `json:"role_name"`
 }
 
 type RegisterInput struct {

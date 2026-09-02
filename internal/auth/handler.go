@@ -172,7 +172,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 // @Success 200 {object} userResponse
 // @Router /auth/me [get]
 func (h *Handler) Me(c *gin.Context) {
-	uid, _ := c.Get("user_id")
+	uid, _ := c.Get(CtxUserID)
 	if uid == nil {
 		c.Error(apperr.Unauthorized("missing identity"))
 		return

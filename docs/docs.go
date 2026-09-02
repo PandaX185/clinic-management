@@ -263,7 +263,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentsListResponse"
+                            "$ref": "#/definitions/api.appointmentsListResponse"
                         }
                     },
                     "400": {
@@ -317,7 +317,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/appointment.BookInput"
+                            "$ref": "#/definitions/service.BookInput"
                         }
                     }
                 ],
@@ -325,7 +325,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -390,7 +390,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -453,7 +453,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/appointment.CancelInput"
+                            "$ref": "#/definitions/service.CancelInput"
                         }
                     }
                 ],
@@ -461,7 +461,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -520,7 +520,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "403": {
@@ -573,7 +573,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "403": {
@@ -626,7 +626,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "403": {
@@ -683,7 +683,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/appointment.RescheduleInput"
+                            "$ref": "#/definitions/service.RescheduleInput"
                         }
                     }
                 ],
@@ -691,7 +691,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/appointment.appointmentResponse"
+                            "$ref": "#/definitions/api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -1263,6 +1263,61 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.appointmentResponse": {
+            "type": "object",
+            "properties": {
+                "cancellation_reason": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "doctor_id": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "patient_id": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.appointmentsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.appointmentResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "api.bindStaffInput": {
             "type": "object",
             "required": [
@@ -1476,7 +1531,7 @@ const docTemplate = `{
                 }
             }
         },
-        "appointment.BookInput": {
+        "service.BookInput": {
             "type": "object",
             "required": [
                 "doctor_id",
@@ -1504,7 +1559,7 @@ const docTemplate = `{
                 }
             }
         },
-        "appointment.CancelInput": {
+        "service.CancelInput": {
             "type": "object",
             "required": [
                 "reason"
@@ -1513,78 +1568,6 @@ const docTemplate = `{
                 "reason": {
                     "type": "string",
                     "maxLength": 1000
-                }
-            }
-        },
-        "appointment.RescheduleInput": {
-            "type": "object",
-            "required": [
-                "duration_minutes",
-                "start_time"
-            ],
-            "properties": {
-                "duration_minutes": {
-                    "type": "integer",
-                    "maximum": 480,
-                    "minimum": 5
-                },
-                "start_time": {
-                    "type": "string"
-                }
-            }
-        },
-        "appointment.appointmentResponse": {
-            "type": "object",
-            "properties": {
-                "cancellation_reason": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "doctor_id": {
-                    "type": "string"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "notes": {
-                    "type": "string"
-                },
-                "patient_id": {
-                    "type": "string"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "appointment.appointmentsListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/appointment.appointmentResponse"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
                 }
             }
         },
@@ -1621,6 +1604,23 @@ const docTemplate = `{
                     "minLength": 8
                 },
                 "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RescheduleInput": {
+            "type": "object",
+            "required": [
+                "duration_minutes",
+                "start_time"
+            ],
+            "properties": {
+                "duration_minutes": {
+                    "type": "integer",
+                    "maximum": 480,
+                    "minimum": 5
+                },
+                "start_time": {
                     "type": "string"
                 }
             }

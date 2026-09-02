@@ -9,7 +9,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	appt "github.com/PandaX185/clinic-management/internal/appointment"
+	apptapi "github.com/PandaX185/clinic-management/internal/appointment/api"
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
@@ -26,7 +26,7 @@ type RouterDeps struct {
 	Logger          Logger
 	AuthH           *authapi.Handler
 	AuthSvc         *authsvc.Service
-	AppointH        *appt.Handler
+	AppointH        *apptapi.Handler
 	TenantH         *tenantapi.Handler
 	TenantSvc       *tenantsvc.Service
 	ProfileResolver ProfileResolver

@@ -1,4 +1,4 @@
-package appointment
+package api
 
 import (
 	"encoding/json"

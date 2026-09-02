@@ -8,7 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	appt "github.com/PandaX185/clinic-management/internal/appointment"
+	apptapi "github.com/PandaX185/clinic-management/internal/appointment/api"
+	apptrepo "github.com/PandaX185/clinic-management/internal/appointment/repo"
+	apptsvc "github.com/PandaX185/clinic-management/internal/appointment/service"
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	authrepo "github.com/PandaX185/clinic-management/internal/auth/repo"
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
@@ -68,9 +70,9 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	}
 	authSvc.WithTenantMemberships(membershipProvider)
 
-	aptRepo := appt.NewPostgresRepository(d.Pool)
-	aptSvc := appt.NewServiceWithIdentity(aptRepo, nil, appt.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
-	aptH := appt.NewHandler(aptSvc)
+	aptRepo := apptrepo.NewPostgresRepository(d.Pool)
+	aptSvc := apptsvc.NewServiceWithIdentity(aptRepo, nil, apptrepo.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
+	aptH := apptapi.NewHandler(aptSvc)
 
 	dirRepo := directoryrepo.NewPostgresRepo(d.Pool)
 	dirSvc := directorysvc.NewService(dirRepo)

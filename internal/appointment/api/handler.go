@@ -1,4 +1,8 @@
-package appointment
+// Package api is the HTTP transport layer for the appointments feature. It
+// maps gin requests to the appointment service and owns response DTOs and the
+// idempotency replay handling. It depends on appointment/service and
+// auth/api; nothing below it depends back on this package.
+package api
 
 import (
 	"encoding/json"
@@ -7,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/PandaX185/clinic-management/internal/appointment/service"
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
@@ -15,31 +20,11 @@ import (
 const idempotencyHeader = "Idempotency-Key"
 
 type Handler struct {
-	svc *Service
+	svc *service.Service
 }
 
-func NewHandler(svc *Service) *Handler {
+func NewHandler(svc *service.Service) *Handler {
 	return &Handler{svc: svc}
-}
-
-type appointmentResponse struct {
-	ID                 string  `json:"id"`
-	PatientID          string  `json:"patient_id"`
-	DoctorID           string  `json:"doctor_id"`
-	StartTime          string  `json:"start_time"`
-	EndTime            string  `json:"end_time"`
-	Status             string  `json:"status"`
-	Notes              *string `json:"notes,omitempty"`
-	CancellationReason *string `json:"cancellation_reason,omitempty"`
-	Version            int32   `json:"version"`
-	CreatedAt          string  `json:"created_at"`
-}
-
-type appointmentsListResponse struct {
-	Items  []appointmentResponse `json:"items"`
-	Total  int                   `json:"total"`
-	Limit  int                   `json:"limit"`
-	Offset int                   `json:"offset"`
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
@@ -70,7 +55,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Security BearerAuth
 // @Param X-Tenant-ID header string true "Tenant id"
 // @Param Idempotency-Key header string false "Client-generated idempotency key"
-// @Param input body BookInput true "Appointment details"
+// @Param input body service.BookInput true "Appointment details"
 // @Success 201 {object} appointmentResponse
 // @Failure 400 {object} apperr.ErrorResponse
 // @Failure 403 {object} apperr.ErrorResponse
@@ -78,7 +63,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Failure 500 {object} apperr.ErrorResponse
 // @Router /appointments [post]
 func (h *Handler) Book(c *gin.Context) {
-	var in BookInput
+	var in service.BookInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
@@ -144,7 +129,7 @@ func (h *Handler) Get(c *gin.Context) {
 // @Failure 403 {object} apperr.ErrorResponse
 // @Router /appointments [get]
 func (h *Handler) List(c *gin.Context) {
-	var q ListQuery
+	var q service.ListQuery
 	if err := c.ShouldBindQuery(&q); err != nil {
 		c.Error(apperr.Invalid("invalid query parameters"))
 		return
@@ -169,7 +154,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Security BearerAuth
 // @Param X-Tenant-ID header string true "Tenant id"
 // @Param id path string true "Appointment id"
-// @Param input body CancelInput true "Cancellation reason"
+// @Param input body service.CancelInput true "Cancellation reason"
 // @Success 200 {object} appointmentResponse
 // @Failure 400 {object} apperr.ErrorResponse
 // @Failure 403 {object} apperr.ErrorResponse
@@ -181,7 +166,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	var in CancelInput
+	var in service.CancelInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.Invalid("reason is required"))
 		return
@@ -202,7 +187,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 // @Security BearerAuth
 // @Param X-Tenant-ID header string true "Tenant id"
 // @Param id path string true "Appointment id"
-// @Param input body RescheduleInput true "New timing"
+// @Param input body service.RescheduleInput true "New timing"
 // @Success 200 {object} appointmentResponse
 // @Failure 400 {object} apperr.ErrorResponse
 // @Failure 403 {object} apperr.ErrorResponse
@@ -214,7 +199,7 @@ func (h *Handler) Reschedule(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	var in RescheduleInput
+	var in service.RescheduleInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
@@ -308,27 +293,12 @@ func parseID(c *gin.Context) (uuid.UUID, error) {
 
 // accessContextOf builds the service-level AccessContext from middleware-set
 // identity claims.
-func accessContextOf(c *gin.Context) AccessContext {
-	ac := AccessContext{Roles: httpctx.Roles(c)}
+func accessContextOf(c *gin.Context) service.AccessContext {
+	ac := service.AccessContext{Roles: httpctx.Roles(c)}
 	uid, err := httpctx.UserID(c)
 	if err == nil {
 		ac.UserID = uid
 		ac.ActorID = &uid
 	}
 	return ac
-}
-
-func toResponse(a *Appointment) *appointmentResponse {
-	return &appointmentResponse{
-		ID:                 a.ID.String(),
-		PatientID:          a.PatientID.String(),
-		DoctorID:           a.DoctorID.String(),
-		StartTime:          a.StartTime.Format("2006-01-02T15:04:05Z07:00"),
-		EndTime:            a.EndTime.Format("2006-01-02T15:04:05Z07:00"),
-		Status:             string(a.Status),
-		Notes:              a.Notes,
-		CancellationReason: a.CancellationReason,
-		Version:            a.Version,
-		CreatedAt:          a.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
 }

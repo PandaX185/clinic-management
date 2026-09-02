@@ -1,4 +1,4 @@
-package appointment
+package repo
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/PandaX185/clinic-management/internal/appointment/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
@@ -27,8 +28,8 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{scoped: database.NewScopedPool(pool)}
 }
 
-func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Appointment, error) {
-	var out *Appointment
+func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*service.Appointment, error) {
+	var out *service.Appointment
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		row, err := db.New(tx).GetAppointmentByID(ctx, id)
 		if err != nil {
@@ -43,8 +44,8 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Appoin
 	return out, err
 }
 
-func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appointment, int64, error) {
-	var items []Appointment
+func (r *PostgresRepository) List(ctx context.Context, query service.ListQuery) ([]service.Appointment, int64, error) {
+	var items []service.Appointment
 	var total int64
 
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
@@ -76,7 +77,7 @@ func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appoi
 			return apperr.Internal(e)
 		}
 
-		items = make([]Appointment, 0, len(rows))
+		items = make([]service.Appointment, 0, len(rows))
 		for i := range rows {
 			items = append(items, *fromRow(rows[i]))
 		}
@@ -88,8 +89,8 @@ func (r *PostgresRepository) List(ctx context.Context, query ListQuery) ([]Appoi
 	return items, total, nil
 }
 
-func (r *PostgresRepository) BookTx(ctx context.Context, p BookTxParams) (BookingResult, error) {
-	var result BookingResult
+func (r *PostgresRepository) BookTx(ctx context.Context, p service.BookTxParams) (service.BookingResult, error) {
+	var result service.BookingResult
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		res, err := bookInTx(ctx, tx, p)
 		if err != nil {
@@ -100,9 +101,9 @@ func (r *PostgresRepository) BookTx(ctx context.Context, p BookTxParams) (Bookin
 	})
 	if err != nil {
 		if be, ok := err.(*bookingError); ok {
-			return BookingResult{}, be.err
+			return service.BookingResult{}, be.err
 		}
-		return BookingResult{}, apperr.Internal(err)
+		return service.BookingResult{}, apperr.Internal(err)
 	}
 	return result, nil
 }
@@ -111,7 +112,7 @@ type bookingError struct{ err error }
 
 func (e *bookingError) Error() string { return e.err.Error() }
 
-func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, error) {
+func bookInTx(ctx context.Context, tx pgx.Tx, p service.BookTxParams) (service.BookingResult, error) {
 	// No Rollback here: the caller (ScopedPool.WithSchema) owns the
 	// transaction lifecycle and commits/rolls back on return.
 	q := db.New(tx)
@@ -122,7 +123,7 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 			DisplayName: "Patient",
 		})
 		if err != nil {
-			return BookingResult{}, wrapBooking(apperr.Internal(err))
+			return service.BookingResult{}, wrapBooking(apperr.Internal(err))
 		}
 	}
 
@@ -134,14 +135,14 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 		switch {
 		case err == nil:
 			if stored.UserID != nil && p.CreatedBy != nil && *stored.UserID != *p.CreatedBy {
-				return BookingResult{}, apperr.Conflict("idempotency key was already used by another request")
+				return service.BookingResult{}, apperr.Conflict("idempotency key was already used by another request")
 			}
 			if stored.RequestHash != "" && stored.RequestHash != p.RequestHash {
-				return BookingResult{}, apperr.Conflict("idempotency key was already used with a different request body")
+				return service.BookingResult{}, apperr.Conflict("idempotency key was already used with a different request body")
 			}
-			return BookingResult{Replayed: true, StoredStatus: int(stored.ResponseStatus), StoredBody: rawJSON(stored.ResponseBody)}, nil
+			return service.BookingResult{Replayed: true, StoredStatus: int(stored.ResponseStatus), StoredBody: rawJSON(stored.ResponseBody)}, nil
 		case !errors.Is(err, pgx.ErrNoRows):
-			return BookingResult{}, wrapBooking(apperr.Internal(err))
+			return service.BookingResult{}, wrapBooking(apperr.Internal(err))
 		}
 	}
 
@@ -151,7 +152,7 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 	} else {
 		apptTypes, err := q.ListAppointmentTypes(ctx)
 		if err != nil || len(apptTypes) == 0 {
-			return BookingResult{}, wrapBooking(apperr.Internal(err))
+			return service.BookingResult{}, wrapBooking(apperr.Internal(err))
 		}
 		appointmentTypeID = apptTypes[0].ID
 	}
@@ -170,12 +171,12 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23P01" {
-			return BookingResult{}, wrapBooking(apperr.Conflict("the requested slot is no longer available"))
+			return service.BookingResult{}, wrapBooking(apperr.Conflict("the requested slot is no longer available"))
 		}
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-			return BookingResult{}, wrapBooking(apperr.Invalid("unknown patient or doctor"))
+			return service.BookingResult{}, wrapBooking(apperr.Invalid("unknown patient or doctor"))
 		}
-		return BookingResult{}, wrapBooking(apperr.Internal(err))
+		return service.BookingResult{}, wrapBooking(apperr.Internal(err))
 	}
 
 	appt := fromRow(created)
@@ -194,13 +195,13 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p BookTxParams) (BookingResult, er
 		})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return BookingResult{}, apperr.Conflict("request with this idempotency key is already being processed")
+				return service.BookingResult{}, apperr.Conflict("request with this idempotency key is already being processed")
 			}
-			return BookingResult{}, apperr.Internal(err)
+			return service.BookingResult{}, apperr.Internal(err)
 		}
 	}
 
-	return BookingResult{Appointment: appt}, nil
+	return service.BookingResult{Appointment: appt}, nil
 }
 
 func wrapBooking(err error) error {
@@ -218,15 +219,15 @@ func rawJSON(v any) []byte {
 	return b
 }
 
-func fromRow(a db.Appointment) *Appointment {
-	out := &Appointment{
+func fromRow(a db.Appointment) *service.Appointment {
+	out := &service.Appointment{
 		ID:                 a.ID,
 		PatientID:          a.ProfileID,
 		DoctorID:           a.DoctorProfileID,
 		AppointmentTypeID:  a.AppointmentTypeID,
 		StartTime:          a.ScheduledStart,
 		EndTime:            a.ScheduledEnd,
-		Status:             Status(a.Status),
+		Status:             service.Status(a.Status),
 		Notes:              pgTextToString(a.VisitNotes),
 		CancellationReason: pgTextToString(a.CancellationReason),
 		Version:            a.Version,
@@ -275,8 +276,8 @@ func nilTime(t *time.Time) *time.Time {
 	return t
 }
 
-func (r *PostgresRepository) Transition(ctx context.Context, p TransitionParams) (*Appointment, error) {
-	var out *Appointment
+func (r *PostgresRepository) Transition(ctx context.Context, p service.TransitionParams) (*service.Appointment, error) {
+	var out *service.Appointment
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		if p.NewStartTime != nil && p.NewEndTime != nil {
 			row, err := db.New(tx).RescheduleAppointment(ctx, db.RescheduleAppointmentParams{

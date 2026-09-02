@@ -1,5 +1,41 @@
 basePath: /api/v1
 definitions:
+  api.appointmentResponse:
+    properties:
+      cancellation_reason:
+        type: string
+      created_at:
+        type: string
+      doctor_id:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      version:
+        type: integer
+    type: object
+  api.appointmentsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.appointmentResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
   api.bindStaffInput:
     properties:
       role:
@@ -140,7 +176,7 @@ definitions:
       error:
         type: string
     type: object
-  appointment.BookInput:
+  service.BookInput:
     properties:
       doctor_id:
         type: string
@@ -160,61 +196,13 @@ definitions:
     - patient_id
     - start_time
     type: object
-  appointment.CancelInput:
+  service.CancelInput:
     properties:
       reason:
         maxLength: 1000
         type: string
     required:
     - reason
-    type: object
-  appointment.RescheduleInput:
-    properties:
-      duration_minutes:
-        maximum: 480
-        minimum: 5
-        type: integer
-      start_time:
-        type: string
-    required:
-    - duration_minutes
-    - start_time
-    type: object
-  appointment.appointmentResponse:
-    properties:
-      cancellation_reason:
-        type: string
-      created_at:
-        type: string
-      doctor_id:
-        type: string
-      end_time:
-        type: string
-      id:
-        type: string
-      notes:
-        type: string
-      patient_id:
-        type: string
-      start_time:
-        type: string
-      status:
-        type: string
-      version:
-        type: integer
-    type: object
-  appointment.appointmentsListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/appointment.appointmentResponse'
-        type: array
-      limit:
-        type: integer
-      offset:
-        type: integer
-      total:
-        type: integer
     type: object
   service.LoginInput:
     properties:
@@ -241,6 +229,18 @@ definitions:
     - full_name
     - password
     - phone
+    type: object
+  service.RescheduleInput:
+    properties:
+      duration_minutes:
+        maximum: 480
+        minimum: 5
+        type: integer
+      start_time:
+        type: string
+    required:
+    - duration_minutes
+    - start_time
     type: object
   service.TokenPair:
     properties:
@@ -437,7 +437,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentsListResponse'
+            $ref: '#/definitions/api.appointmentsListResponse'
         "400":
           description: Bad Request
           schema:
@@ -473,14 +473,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/appointment.BookInput'
+          $ref: '#/definitions/service.BookInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -522,7 +522,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -561,14 +561,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/appointment.CancelInput'
+          $ref: '#/definitions/service.CancelInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -607,7 +607,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -642,7 +642,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -677,7 +677,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -713,14 +713,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/appointment.RescheduleInput'
+          $ref: '#/definitions/service.RescheduleInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/appointment.appointmentResponse'
+            $ref: '#/definitions/api.appointmentResponse'
         "400":
           description: Bad Request
           schema:

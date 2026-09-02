@@ -21,7 +21,7 @@ import (
 	_ "github.com/PandaX185/clinic-management/docs"
 
 	"github.com/PandaX185/clinic-management/internal/app/wiring"
-	appt "github.com/PandaX185/clinic-management/internal/appointment"
+	apptrepo "github.com/PandaX185/clinic-management/internal/appointment/repo"
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	"github.com/PandaX185/clinic-management/internal/platform/logger"
@@ -77,7 +77,7 @@ func run() error {
 
 	// Expired idempotency keys are purged on an interval derived from the key
 	// TTL so the table stays bounded (BR-07).
-	cleaner := appt.NewIdempotencyCleaner(pool, cfg.IdempotencyTTL)
+	cleaner := apptrepo.NewIdempotencyCleaner(pool, cfg.IdempotencyTTL)
 	go cleaner.Run(ctx, log)
 	defer cleaner.Stop()
 

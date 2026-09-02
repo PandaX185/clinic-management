@@ -1,4 +1,4 @@
-package appointment
+package repo
 
 import (
 	"context"

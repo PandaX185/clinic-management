@@ -1,4 +1,4 @@
-package appointment
+package repo
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func NewPostgresIdentityResolver(pool *pgxpool.Pool) *PostgresIdentityResolver {
 	return &PostgresIdentityResolver{pool: pool}
 }
 
-// PatientIDForUser returns uuid.Nil when no patient row is linked.
+// service.PatientIDForUser returns uuid.Nil when no patient row is linked.
 func (r *PostgresIdentityResolver) PatientIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	slug := database.TenantSlugFrom(ctx)
 	if slug == "" {

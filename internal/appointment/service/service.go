@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -337,13 +336,4 @@ func hashRequest(in BookInput) string {
 	_, _ = h.Write([]byte(in.DoctorID))
 	_, _ = h.Write([]byte(in.StartTime.Format(time.RFC3339Nano)))
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-// marshalDetails marshals details for audit (no-op in v2).
-func marshalDetails(v any) []byte {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return []byte(`{}`)
-	}
-	return b
 }

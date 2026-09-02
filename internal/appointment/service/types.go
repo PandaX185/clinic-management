@@ -7,11 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type StoredResponse struct {
-	Status int
-	Body   []byte
-}
-
 type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Appointment, error)
 	List(ctx context.Context, q ListQuery) ([]Appointment, int64, error)

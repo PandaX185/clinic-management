@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
 
@@ -33,7 +34,7 @@ func (s *Service) CreateProfile(ctx context.Context, userID uuid.UUID, name, rol
 	if role == "" {
 		role = "patient"
 	}
-	if !standardRoles[role] {
+	if !authsvc.StandardRoles()[role] {
 		return nil, apperr.Invalid("unknown role: " + role)
 	}
 	return s.repo.CreateProfile(ctx, userID, name, role)
@@ -66,11 +67,4 @@ func validateType(in AppointmentType) error {
 		return apperr.Invalid("duration_minutes must be positive")
 	}
 	return nil
-}
-
-// standardRoles mirrors tenant.service.standardRoles: the roles seeded into
-// every clinic schema on provision.
-var standardRoles = map[string]bool{
-	"admin": true, "staff": true, "doctor": true,
-	"nurse": true, "manager": true, "patient": true,
 }

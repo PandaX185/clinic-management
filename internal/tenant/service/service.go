@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
@@ -83,12 +84,6 @@ func (s *Service) Deactivate(ctx context.Context, id uuid.UUID) error {
 	return s.store.SetTenantActive(ctx, id, false)
 }
 
-// standardRoles are the roles seeded into every tenant schema on provision.
-var standardRoles = map[string]bool{
-	"admin": true, "staff": true, "doctor": true,
-	"nurse": true, "manager": true, "patient": true,
-}
-
 // BindStaff registers a user within a tenant's profile table with the given
 // role, so the clinic shows up in that user's list at login and access checks
 // resolve the role from the tenant's profile_roles. The role row must exist
@@ -109,7 +104,7 @@ func (s *Service) BindStaff(ctx context.Context, userID, tenantID uuid.UUID, rol
 
 func (s *Service) bindRole(ctx context.Context, userID uuid.UUID, t *Tenant, role string) error {
 	role = strings.ToLower(strings.TrimSpace(role))
-	if !standardRoles[role] {
+	if !authsvc.StandardRoles()[role] {
 		return apperr.Invalid("unknown role: " + role)
 	}
 

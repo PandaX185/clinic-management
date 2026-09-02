@@ -258,22 +258,11 @@ func nilUUIDPtr(s string) *uuid.UUID {
 	return &id
 }
 
-func nilPgText(s string) pgtype.Text {
-	if s == "" {
-		return pgtype.Text{Valid: false}
-	}
-	return pgtype.Text{String: s, Valid: true}
-}
-
 func pgTextToString(t pgtype.Text) *string {
 	if !t.Valid {
 		return nil
 	}
 	return &t.String
-}
-
-func nilTime(t *time.Time) *time.Time {
-	return t
 }
 
 func (r *PostgresRepository) Transition(ctx context.Context, p service.TransitionParams) (*service.Appointment, error) {

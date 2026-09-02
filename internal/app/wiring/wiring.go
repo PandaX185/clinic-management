@@ -54,6 +54,14 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	tenantSvc := tenant.NewService(tenantStore, profileStore, tenantStore)
 	tenantH := tenant.NewHandler(tenantSvc)
 
+	// Real "my clinics" resolution for /auth/tenants: global user_tenants
+	// index + per-tenant role lookup. Defined here to keep auth→tenant acyclic.
+	membershipProvider := &tenantMembershipProvider{
+		pool:  d.Pool,
+		store: tenantStore,
+	}
+	authSvc.WithTenantMemberships(membershipProvider)
+
 	aptRepo := appt.NewPostgresRepository(d.Pool)
 	aptSvc := appt.NewServiceWithIdentity(aptRepo, nil, appt.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
 	aptH := appt.NewHandler(aptSvc)

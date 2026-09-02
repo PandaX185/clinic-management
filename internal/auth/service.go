@@ -38,16 +38,36 @@ func NewTokenManager(secret, refreshSecret string, accessTTL, refreshTTL time.Du
 }
 
 type Service struct {
-	repo   Repository
-	tokens *TokenManager
+	repo        Repository
+	tokens      *TokenManager
+	memberships TenantMembershipProvider
 }
 
 func NewService(repo Repository, tokens *TokenManager) *Service {
 	return &Service{repo: repo, tokens: tokens}
 }
 
+// TenantMembershipProvider resolves the clinics a user is a member of, with
+// their role in each. It is defined here (rather than auth importing tenant)
+// so dependency injection stays acyclic: tenant already imports auth, and the
+// wiring adapter implements this interface in the app package.
+type TenantMembershipProvider interface {
+	MembershipsForUser(ctx context.Context, userID uuid.UUID) ([]UserTenant, error)
+}
+
+// WithTenantMemberships wires a real membership resolver. When absent,
+// ListTenants falls back to the repository (which in non-wired contexts
+// returns nil).
+func (s *Service) WithTenantMemberships(p TenantMembershipProvider) *Service {
+	s.memberships = p
+	return s
+}
+
 // ListTenants returns all tenants the user belongs to, with their role in each.
 func (s *Service) ListTenants(ctx context.Context, userID uuid.UUID) ([]UserTenant, error) {
+	if s.memberships != nil {
+		return s.memberships.MembershipsForUser(ctx, userID)
+	}
 	return s.repo.ListTenantsForUser(ctx, userID)
 }
 

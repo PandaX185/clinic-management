@@ -1160,7 +1160,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns the clinics the current user has a profile in; falls back to all active clinics when the user has no staff bindings.",
+                "description": "Returns the clinics the current user has a membership in; an empty list when the user has no clinics.",
                 "produces": [
                     "application/json"
                 ],
@@ -1441,16 +1441,16 @@ const docTemplate = `{
         "auth.UserTenant": {
             "type": "object",
             "properties": {
-                "roleName": {
+                "role_name": {
                     "type": "string"
                 },
-                "tenantID": {
+                "tenant_id": {
                     "type": "string"
                 },
-                "tenantName": {
+                "tenant_name": {
                     "type": "string"
                 },
-                "tenantSlug": {
+                "tenant_slug": {
                     "type": "string"
                 }
             }

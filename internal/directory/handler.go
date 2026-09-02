@@ -46,16 +46,16 @@ type typeResponse struct {
 	CreatedAt       string `json:"created_at"`
 }
 
+type typesListResponse struct {
+	Items []typeResponse `json:"items"`
+}
+
 type typeInput struct {
 	Name            string `json:"name" binding:"required,max=100"`
 	DurationMinutes int32  `json:"duration_minutes" binding:"required"`
 	Price           string `json:"price"`
 	Color           string `json:"color"`
 	Icon            string `json:"icon"`
-}
-
-type typesListResponse struct {
-	Items []typeResponse `json:"items"`
 }
 
 // RegisterRoutes mounts tenant-scoped directory endpoints (X-Tenant-ID

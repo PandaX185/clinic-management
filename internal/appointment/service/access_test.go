@@ -118,6 +118,54 @@ func TestBookScoped_PatientForcedToOwnPatientID(t *testing.T) {
 	}
 }
 
+// Doctor access regression (SEC-02): a doctor-only caller must be scoped to
+// their own doctor profile id in list queries, exactly as a patient is scoped
+// to their patient profile id for booking. The DoctorIDForUser resolver now
+// returns the caller's profile id.
+func TestListScoped_DoctorScopedToOwnDoctorID(t *testing.T) {
+	ownDoctor := uuid.New()
+	var captured ListQuery
+	repo := captureListRepo{onList: func(q ListQuery) { captured = q }}
+	svc := NewServiceWithIdentity(repo, nil, fakeIdentity{doctorID: ownDoctor}, time.Minute)
+
+	items, total, err := svc.ListScoped(context.Background(), ListQuery{}, acFor("doctor"))
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+	if captured.DoctorID != ownDoctor.String() {
+		t.Fatalf("doctor_id not scoped to own profile: got %s want %s", captured.DoctorID, ownDoctor)
+	}
+	if captured.PatientID != "" {
+		t.Fatalf("patient_id should be cleared for doctor scope, got %q", captured.PatientID)
+	}
+	if len(items) != 0 || total != 0 {
+		t.Fatalf("expected empty result list from capture repo, got %d items/%d total", len(items), total)
+	}
+}
+
+// A user holding both doctor and patient roles may access appointments they
+// are linked to on either side (previously the mixed-role path was denied).
+func TestGetScoped_MixedDoctorPatientRoles(t *testing.T) {
+	ownPatient := uuid.New()
+	ownDoctor := uuid.New()
+	appt := testAppt(ownPatient, ownDoctor)
+	svc := NewServiceWithIdentity(fakeRepo{appt: appt}, nil, fakeIdentity{patientID: ownPatient, doctorID: ownDoctor}, time.Minute)
+
+	if _, err := svc.GetScoped(context.Background(), appt.ID, acFor("patient", "doctor")); err != nil {
+		t.Fatalf("mixed-role user should access appointment they link to, got %v", err)
+	}
+}
+
+type captureListRepo struct {
+	Repository
+	onList func(ListQuery)
+}
+
+func (c captureListRepo) List(ctx context.Context, q ListQuery) ([]Appointment, int64, error) {
+	c.onList(q)
+	return []Appointment{}, 0, nil
+}
+
 type captureRepo struct {
 	Repository
 	onBook func(BookTxParams)

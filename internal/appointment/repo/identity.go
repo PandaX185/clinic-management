@@ -21,8 +21,22 @@ func NewPostgresIdentityResolver(pool *pgxpool.Pool) *PostgresIdentityResolver {
 	return &PostgresIdentityResolver{pool: pool}
 }
 
-// service.PatientIDForUser returns uuid.Nil when no patient row is linked.
+// PatientIDForUser returns the caller's profile id — appointments reference
+// patients and doctors by profile id, so the same lookup serves both roles.
+// Returns uuid.Nil when no profile is linked.
 func (r *PostgresIdentityResolver) PatientIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	return r.profileIDForUser(ctx, userID)
+}
+
+// DoctorIDForUser returns the caller's profile id. In this model doctors are
+// profiles too (with the doctor role), and appointments store the doctor's
+// profile id in doctor_profile_id, so the identity is the same one returned
+// for patients. uuid.Nil when no profile is linked.
+func (r *PostgresIdentityResolver) DoctorIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	return r.profileIDForUser(ctx, userID)
+}
+
+func (r *PostgresIdentityResolver) profileIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	slug := database.TenantSlugFrom(ctx)
 	if slug == "" {
 		return uuid.Nil, apperr.Internal(errors.New("tenant scope missing from context"))
@@ -43,13 +57,4 @@ func (r *PostgresIdentityResolver) PatientIDForUser(ctx context.Context, userID 
 		return uuid.Nil, apperr.Internal(err)
 	}
 	return profileID, nil
-}
-
-// DoctorIDForUser returns uuid.Nil in v2 — doctors are profiles too and
-// there's no separate doctor-patient link. Access is role-based instead.
-func (r *PostgresIdentityResolver) DoctorIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	// In v2, doctors are profiles; access is checked via role_permissions
-	// and profile_roles rather than separate doctor IDs.
-	// Return uuid.Nil and enforce authorization at the service level.
-	return uuid.Nil, nil
 }

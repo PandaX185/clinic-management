@@ -51,39 +51,50 @@ func (s *Service) resolveScope(ctx context.Context, ac AccessContext) (scope, er
 	if ac.IsPrivileged() {
 		return scope{}, nil
 	}
-	if ac.hasRole("patient") && !ac.hasRole("doctor") {
+
+	var sc scope
+	if ac.hasRole("patient") {
 		pid, err := s.identity.PatientIDForUser(ctx, ac.UserID)
 		if err != nil {
 			return scope{}, err
 		}
-		if pid == uuid.Nil {
-			return scope{deny: true}, nil
+		if pid != uuid.Nil {
+			sc.patientID = &pid
 		}
-		return scope{patientID: &pid}, nil
 	}
-	if ac.hasRole("doctor") && !ac.hasRole("patient") {
+	if ac.hasRole("doctor") {
 		did, err := s.identity.DoctorIDForUser(ctx, ac.UserID)
 		if err != nil {
 			return scope{}, err
 		}
-		if did == uuid.Nil {
-			return scope{deny: true}, nil
+		if did != uuid.Nil {
+			sc.doctorID = &did
 		}
-		return scope{doctorID: &did}, nil
 	}
-	// Mixed or unrecognized role sets: treat as unprivileged with no grants.
-	return scope{deny: true}, nil
+
+	// No grants resolved (no patient/doctor profile, or only unrelated
+	// roles): the caller owns nothing.
+	if sc.patientID == nil && sc.doctorID == nil {
+		return scope{deny: true}, nil
+	}
+	return sc, nil
 }
 
-// canAccessAppointment checks read/mutate access for a specific appointment.
+// canAccessAppointment checks read/mutate access for a specific appointment
+// against the caller's grants. An empty scope means the caller is privileged
+// (admin/staff) and may access anything. Otherwise the caller needs to be
+// linked to the appointment on at least one side: as the patient (patient
+// grant) or as the doctor (doctor grant).
 func (s *Service) canAccessAppointment(sc scope, appt *Appointment) error {
 	if sc.deny {
 		return apperr.Forbidden("you do not have access to this appointment")
 	}
-	if sc.patientID != nil && appt.PatientID != *sc.patientID {
-		return apperr.Forbidden("you do not have access to this appointment")
+	if sc.patientID == nil && sc.doctorID == nil {
+		return nil
 	}
-	if sc.doctorID != nil && appt.DoctorID != *sc.doctorID {
+	match := (sc.patientID != nil && appt.PatientID == *sc.patientID) ||
+		(sc.doctorID != nil && appt.DoctorID == *sc.doctorID)
+	if !match {
 		return apperr.Forbidden("you do not have access to this appointment")
 	}
 	return nil

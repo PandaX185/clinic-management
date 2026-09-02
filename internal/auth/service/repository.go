@@ -18,5 +18,4 @@ type Repository interface {
 	StoreRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error
 	DeleteRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string) error
 	ValidateRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string) error
-	ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]UserTenant, error)
 }

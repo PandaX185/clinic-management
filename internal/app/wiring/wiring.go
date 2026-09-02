@@ -54,7 +54,7 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 
 	authRepo := authrepo.NewPostgresRepository(d.Pool)
 	tokens := authsvc.NewTokenManager(d.Cfg.JWTSecret, d.Cfg.JWTRefreshSecret, d.Cfg.AccessTokenTTL, d.Cfg.RefreshTokenTTL)
-	authSvc := authsvc.NewService(authRepo, tokens)
+	authSvc := authsvc.NewService(authRepo, tokens, d.Cfg.BcryptCost)
 	authH := authapi.NewHandler(authSvc)
 
 	tenantStore := tenantrepo.NewPostgresStore(d.Pool)

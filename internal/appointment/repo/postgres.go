@@ -146,21 +146,16 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p service.BookTxParams) (service.B
 		}
 	}
 
-	var appointmentTypeID uuid.UUID
-	if p.AppointmentTypeID != nil {
-		appointmentTypeID = *p.AppointmentTypeID
-	} else {
-		apptTypes, err := q.ListAppointmentTypes(ctx)
-		if err != nil || len(apptTypes) == 0 {
-			return service.BookingResult{}, wrapBooking(apperr.Internal(err))
-		}
-		appointmentTypeID = apptTypes[0].ID
+	// The booking API does not select an appointment type, so the default
+	// type is always used. Keep the lookups in a single branch.
+	apptTypes, err := q.ListAppointmentTypes(ctx)
+	if err != nil || len(apptTypes) == 0 {
+		return service.BookingResult{}, wrapBooking(apperr.Internal(err))
 	}
-
 	created, err := q.CreateAppointment(ctx, db.CreateAppointmentParams{
 		ProfileID:         p.PatientID,
 		DoctorProfileID:   p.DoctorID,
-		AppointmentTypeID: appointmentTypeID,
+		AppointmentTypeID: apptTypes[0].ID,
 		ScheduledStart:    p.StartTime,
 		ScheduledEnd:      p.EndTime,
 		Status:            "scheduled",

@@ -52,17 +52,11 @@ func (f *fakeRepo) GetUserByID(_ context.Context, id uuid.UUID) (*User, error) {
 func (f *fakeRepo) IsGlobalAdmin(context.Context, uuid.UUID) (bool, error) {
 	return false, nil
 }
-func (f *fakeRepo) UpdateUserStatus(context.Context, uuid.UUID, string) error {
-	return errors.New("not implemented")
-}
-func (f *fakeRepo) ListTenantsForUser(context.Context, uuid.UUID) ([]UserTenant, error) {
-	return nil, errors.New("not implemented")
-}
 
 func newTestService() (*Service, *fakeRepo) {
 	repo := &fakeRepo{refresh: map[string]string{}}
 	tm := NewTokenManager("access-secret", "refresh-secret", 15*time.Minute, 24*time.Hour)
-	return NewService(repo, tm), repo
+	return NewService(repo, tm, 0), repo
 }
 
 func TestIssue_ParseAccessTokenRoundTrip(t *testing.T) {

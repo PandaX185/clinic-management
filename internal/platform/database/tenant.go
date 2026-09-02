@@ -89,45 +89,6 @@ func ProvisionTenant(ctx context.Context, pool *pgxpool.Pool, slug string) error
 	return tx.Commit(ctx)
 }
 
-// DropTenant removes a clinic's schema entirely (GDPR-style erasure).
-// The tenants row must be removed by the caller.
-func DropTenant(ctx context.Context, pool *pgxpool.Pool, slug string) error {
-	if !ValidSlug(slug) {
-		return fmt.Errorf("invalid tenant slug %q", slug)
-	}
-	_, err := pool.Exec(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", SchemaName(slug)))
-	return err
-}
-
-// ListTenantSchemas returns slugs of all provisioned tenant schemas by
-// diffing the tenants table against information_schema.
-func ListTenantSchemas(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
-	rows, err := pool.Query(ctx,
-		`SELECT t.slug FROM tenants t
-		 JOIN pg_namespace n ON n.nspname = 'tenant_' || t.slug
-		 WHERE t.status = 'active' ORDER BY t.slug`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var slugs []string
-	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err != nil {
-			return nil, err
-		}
-		slugs = append(slugs, s)
-	}
-	return slugs, rows.Err()
-}
-
-// TenantConn wraps a transaction bound to one tenant's schema. All sqlc
-// queries executed through it resolve unqualified table names against the
-// tenant schema first (set_config local resets automatically on commit).
-type TenantConn struct {
-	schema string
-}
-
 // WithTenantSchema runs fn with a transaction whose search_path targets the
 // given tenant schema. This is the single choke point through which every
 // tenant-scoped DB operation must flow.

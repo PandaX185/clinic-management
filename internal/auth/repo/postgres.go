@@ -97,16 +97,6 @@ func (r *PostgresRepository) ValidateRefreshToken(ctx context.Context, userID uu
 	return nil
 }
 
-// ListTenantsForUser returns all tenants the user has a profile in, with their role in each.
-//
-// Note: This is a placeholder. The full implementation requires running the query
-// inside each tenant's schema (since profiles and roles are tenant-scoped), which
-// the auth package doesn't have direct access to. The service should call the
-// wired TenantMembershipProvider instead.
-func (r *PostgresRepository) ListTenantsForUser(ctx context.Context, userID uuid.UUID) ([]service.UserTenant, error) {
-	return nil, nil
-}
-
 func userFromRow(row db.User) *service.User {
 	return &service.User{
 		ID:           row.ID,

@@ -13,12 +13,6 @@ type Metrics struct {
 
 	HTTPRequestsTotal  *prometheus.CounterVec
 	HTTPRequestLatency *prometheus.HistogramVec
-	DBQueryLatency     *prometheus.HistogramVec
-	CacheHits          prometheus.Counter
-	CacheMisses        prometheus.Counter
-	BookingConflicts   prometheus.Counter
-	NotificationsSent  *prometheus.CounterVec
-	QueueDepth         prometheus.Gauge
 }
 
 func New() *Metrics {
@@ -36,28 +30,6 @@ func New() *Metrics {
 			Help:    "HTTP request latency in seconds.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"method", "route"}),
-		DBQueryLatency: f.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "db_query_duration_seconds",
-			Help:    "Database query latency in seconds.",
-			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
-		}, []string{"operation"}),
-		CacheHits: f.NewCounter(prometheus.CounterOpts{
-			Name: "cache_hits_total",
-		}),
-		CacheMisses: f.NewCounter(prometheus.CounterOpts{
-			Name: "cache_misses_total",
-		}),
-		BookingConflicts: f.NewCounter(prometheus.CounterOpts{
-			Name: "appointment_booking_conflicts_total",
-			Help: "Rejected bookings due to slot conflicts.",
-		}),
-		NotificationsSent: f.NewCounterVec(prometheus.CounterOpts{
-			Name: "notifications_total",
-			Help: "Notification processing outcomes.",
-		}, []string{"status"}),
-		QueueDepth: f.NewGauge(prometheus.GaugeOpts{
-			Name: "notification_queue_depth",
-		}),
 	}
 	return m
 }

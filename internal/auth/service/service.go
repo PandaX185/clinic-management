@@ -41,10 +41,16 @@ type Service struct {
 	repo        Repository
 	tokens      *TokenManager
 	memberships TenantMembershipProvider
+	bcryptCost  int
 }
 
-func NewService(repo Repository, tokens *TokenManager) *Service {
-	return &Service{repo: repo, tokens: tokens}
+// NewService creates an auth service. bcryptCost must be > 0; pass 0 to use
+// the bcrypt package default.
+func NewService(repo Repository, tokens *TokenManager, bcryptCost int) *Service {
+	if bcryptCost <= 0 {
+		bcryptCost = bcrypt.DefaultCost
+	}
+	return &Service{repo: repo, tokens: tokens, bcryptCost: bcryptCost}
 }
 
 // TenantMembershipProvider resolves the clinics a user is a member of, with
@@ -55,20 +61,20 @@ type TenantMembershipProvider interface {
 	MembershipsForUser(ctx context.Context, userID uuid.UUID) ([]UserTenant, error)
 }
 
-// WithTenantMemberships wires a real membership resolver. When absent,
-// ListTenants falls back to the repository (which in non-wired contexts
-// returns nil).
+// WithTenantMemberships wires a real membership resolver. It is required for
+// ListTenants to return results; without it the call returns empty.
 func (s *Service) WithTenantMemberships(p TenantMembershipProvider) *Service {
 	s.memberships = p
 	return s
 }
 
-// ListTenants returns all tenants the user belongs to, with their role in each.
+// ListTenants returns all tenants the user belongs to, with their role in
+// each, via the injected membership provider (see wiring).
 func (s *Service) ListTenants(ctx context.Context, userID uuid.UUID) ([]UserTenant, error) {
-	if s.memberships != nil {
-		return s.memberships.MembershipsForUser(ctx, userID)
+	if s.memberships == nil {
+		return []UserTenant{}, nil
 	}
-	return s.repo.ListTenantsForUser(ctx, userID)
+	return s.memberships.MembershipsForUser(ctx, userID)
 }
 
 // HashRefreshToken converts a raw refresh token to a SHA-256 hash for DB storage.
@@ -249,7 +255,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 
 // Register creates a new user account and returns a token pair.
 func (s *Service) Register(ctx context.Context, in RegisterInput) (*User, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), s.bcryptCost)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}

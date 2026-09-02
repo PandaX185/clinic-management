@@ -12,7 +12,7 @@ import (
 	appt "github.com/PandaX185/clinic-management/internal/appointment"
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
-	directory "github.com/PandaX185/clinic-management/internal/directory"
+	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
 	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
 	tenantsvc "github.com/PandaX185/clinic-management/internal/tenant/service"
 
@@ -30,7 +30,7 @@ type RouterDeps struct {
 	TenantH         *tenantapi.Handler
 	TenantSvc       *tenantsvc.Service
 	ProfileResolver ProfileResolver
-	DirectoryH      *directory.Handler
+	DirectoryH      *directoryapi.Handler
 	Metrics         *metrics.Metrics
 }
 

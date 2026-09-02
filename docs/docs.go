@@ -43,7 +43,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/directory.typesListResponse"
+                            "$ref": "#/definitions/api.typesListResponse"
                         }
                     },
                     "403": {
@@ -85,7 +85,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/directory.typeInput"
+                            "$ref": "#/definitions/api.typeInput"
                         }
                     }
                 ],
@@ -93,7 +93,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/directory.typeResponse"
+                            "$ref": "#/definitions/api.typeResponse"
                         }
                     },
                     "400": {
@@ -150,7 +150,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/directory.typeInput"
+                            "$ref": "#/definitions/api.typeInput"
                         }
                     }
                 ],
@@ -158,7 +158,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/directory.typeResponse"
+                            "$ref": "#/definitions/api.typeResponse"
                         }
                     },
                     "400": {
@@ -935,7 +935,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/directory.profilesListResponse"
+                            "$ref": "#/definitions/api.profilesListResponse"
                         }
                     },
                     "403": {
@@ -981,7 +981,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/directory.profilesListResponse"
+                            "$ref": "#/definitions/api.profilesListResponse"
                         }
                     },
                     "403": {
@@ -1029,7 +1029,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/directory.createProfileInput"
+                            "$ref": "#/definitions/api.createProfileInput"
                         }
                     }
                 ],
@@ -1037,7 +1037,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/directory.profileResponse"
+                            "$ref": "#/definitions/api.profileResponse"
                         }
                     },
                     "400": {
@@ -1285,6 +1285,25 @@ const docTemplate = `{
                 }
             }
         },
+        "api.createProfileInput": {
+            "type": "object",
+            "required": [
+                "display_name",
+                "user_id"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "role": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "api.createTenantInput": {
             "type": "object",
             "required": [
@@ -1299,6 +1318,43 @@ const docTemplate = `{
                 "slug": {
                     "type": "string",
                     "maxLength": 63
+                }
+            }
+        },
+        "api.profileResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.profilesListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.profileResponse"
+                    }
                 }
             }
         },
@@ -1326,6 +1382,68 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/api.tenantResponse"
+                    }
+                }
+            }
+        },
+        "api.typeInput": {
+            "type": "object",
+            "required": [
+                "duration_minutes",
+                "name"
+            ],
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "duration_minutes": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "price": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.typeResponse": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "duration_minutes": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.typesListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.typeResponse"
                     }
                 }
             }
@@ -1467,124 +1585,6 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
-                }
-            }
-        },
-        "directory.createProfileInput": {
-            "type": "object",
-            "required": [
-                "display_name",
-                "user_id"
-            ],
-            "properties": {
-                "display_name": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "role": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "directory.profileResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "status": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "directory.profilesListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/directory.profileResponse"
-                    }
-                }
-            }
-        },
-        "directory.typeInput": {
-            "type": "object",
-            "required": [
-                "duration_minutes",
-                "name"
-            ],
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "duration_minutes": {
-                    "type": "integer"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 100
-                },
-                "price": {
-                    "type": "string"
-                }
-            }
-        },
-        "directory.typeResponse": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "duration_minutes": {
-                    "type": "integer"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "string"
-                }
-            }
-        },
-        "directory.typesListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/directory.typeResponse"
-                    }
                 }
             }
         },

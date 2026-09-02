@@ -1,4 +1,4 @@
-package directory
+package service
 
 import (
 	"context"
@@ -8,40 +8,6 @@ import (
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 )
-
-// Profile is a person registered in a clinic (patient, doctor, staff, ...).
-type Profile struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	DisplayName string
-	Status      string
-	Roles       []string
-	CreatedAt   string
-	UpdatedAt   string
-}
-
-// AppointmentType is a bookable service a clinic offers (consultation, ...).
-type AppointmentType struct {
-	ID              uuid.UUID
-	Name            string
-	DurationMinutes int32
-	Price           string
-	Color           string
-	Icon            string
-	CreatedAt       string
-	UpdatedAt       string
-}
-
-// Repo persists clinic directory records in the active tenant schema.
-type Repo interface {
-	ListProfiles(ctx context.Context) ([]Profile, error)
-	CreateProfile(ctx context.Context, userID uuid.UUID, displayName, role string) (*Profile, error)
-	ListDoctors(ctx context.Context) ([]Profile, error)
-	ListAppointmentTypes(ctx context.Context) ([]AppointmentType, error)
-	GetAppointmentType(ctx context.Context, id uuid.UUID) (*AppointmentType, error)
-	CreateAppointmentType(ctx context.Context, in AppointmentType) (*AppointmentType, error)
-	UpdateAppointmentType(ctx context.Context, in AppointmentType) (*AppointmentType, error)
-}
 
 // Service is the clinic directory use case surface.
 type Service struct {
@@ -102,8 +68,8 @@ func validateType(in AppointmentType) error {
 	return nil
 }
 
-// standardRoles mirrors tenant.standardRoles: the roles seeded into every
-// clinic schema on provision.
+// standardRoles mirrors tenant.service.standardRoles: the roles seeded into
+// every clinic schema on provision.
 var standardRoles = map[string]bool{
 	"admin": true, "staff": true, "doctor": true,
 	"nurse": true, "manager": true, "patient": true,

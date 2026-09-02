@@ -14,6 +14,19 @@ definitions:
       bound:
         type: boolean
     type: object
+  api.createProfileInput:
+    properties:
+      display_name:
+        maxLength: 255
+        type: string
+      role:
+        type: string
+      user_id:
+        type: string
+    required:
+    - display_name
+    - user_id
+    type: object
   api.createTenantInput:
     properties:
       name:
@@ -25,6 +38,30 @@ definitions:
     required:
     - name
     - slug
+    type: object
+  api.profileResponse:
+    properties:
+      created_at:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: string
+      roles:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      user_id:
+        type: string
+    type: object
+  api.profilesListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.profileResponse'
+        type: array
     type: object
   api.tenantResponse:
     properties:
@@ -42,6 +79,47 @@ definitions:
       items:
         items:
           $ref: '#/definitions/api.tenantResponse'
+        type: array
+    type: object
+  api.typeInput:
+    properties:
+      color:
+        type: string
+      duration_minutes:
+        type: integer
+      icon:
+        type: string
+      name:
+        maxLength: 100
+        type: string
+      price:
+        type: string
+    required:
+    - duration_minutes
+    - name
+    type: object
+  api.typeResponse:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      duration_minutes:
+        type: integer
+      icon:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      price:
+        type: string
+    type: object
+  api.typesListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.typeResponse'
         type: array
     type: object
   api.userResponse:
@@ -138,84 +216,6 @@ definitions:
       total:
         type: integer
     type: object
-  directory.createProfileInput:
-    properties:
-      display_name:
-        maxLength: 255
-        type: string
-      role:
-        type: string
-      user_id:
-        type: string
-    required:
-    - display_name
-    - user_id
-    type: object
-  directory.profileResponse:
-    properties:
-      created_at:
-        type: string
-      display_name:
-        type: string
-      id:
-        type: string
-      roles:
-        items:
-          type: string
-        type: array
-      status:
-        type: string
-      user_id:
-        type: string
-    type: object
-  directory.profilesListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/directory.profileResponse'
-        type: array
-    type: object
-  directory.typeInput:
-    properties:
-      color:
-        type: string
-      duration_minutes:
-        type: integer
-      icon:
-        type: string
-      name:
-        maxLength: 100
-        type: string
-      price:
-        type: string
-    required:
-    - duration_minutes
-    - name
-    type: object
-  directory.typeResponse:
-    properties:
-      color:
-        type: string
-      created_at:
-        type: string
-      duration_minutes:
-        type: integer
-      icon:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      price:
-        type: string
-    type: object
-  directory.typesListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/directory.typeResponse'
-        type: array
-    type: object
   service.LoginInput:
     properties:
       password:
@@ -290,7 +290,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/directory.typesListResponse'
+            $ref: '#/definitions/api.typesListResponse'
         "403":
           description: Forbidden
           schema:
@@ -315,14 +315,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/directory.typeInput'
+          $ref: '#/definitions/api.typeInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/directory.typeResponse'
+            $ref: '#/definitions/api.typeResponse'
         "400":
           description: Bad Request
           schema:
@@ -358,14 +358,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/directory.typeInput'
+          $ref: '#/definitions/api.typeInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/directory.typeResponse'
+            $ref: '#/definitions/api.typeResponse'
         "400":
           description: Bad Request
           schema:
@@ -879,7 +879,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/directory.profilesListResponse'
+            $ref: '#/definitions/api.profilesListResponse'
         "403":
           description: Forbidden
           schema:
@@ -909,7 +909,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/directory.profilesListResponse'
+            $ref: '#/definitions/api.profilesListResponse'
         "403":
           description: Forbidden
           schema:
@@ -939,14 +939,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/directory.createProfileInput'
+          $ref: '#/definitions/api.createProfileInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/directory.profileResponse'
+            $ref: '#/definitions/api.profileResponse'
         "400":
           description: Bad Request
           schema:

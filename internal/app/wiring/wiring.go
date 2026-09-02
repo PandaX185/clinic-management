@@ -12,7 +12,9 @@ import (
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	authrepo "github.com/PandaX185/clinic-management/internal/auth/repo"
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
-	directory "github.com/PandaX185/clinic-management/internal/directory"
+	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
+	directoryrepo "github.com/PandaX185/clinic-management/internal/directory/repo"
+	directorysvc "github.com/PandaX185/clinic-management/internal/directory/service"
 	server "github.com/PandaX185/clinic-management/internal/server"
 	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
 	tenantrepo "github.com/PandaX185/clinic-management/internal/tenant/repo"
@@ -70,9 +72,9 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	aptSvc := appt.NewServiceWithIdentity(aptRepo, nil, appt.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
 	aptH := appt.NewHandler(aptSvc)
 
-	dirRepo := directory.NewPostgresRepo(d.Pool)
-	dirSvc := directory.NewService(dirRepo)
-	dirH := directory.NewHandler(dirSvc)
+	dirRepo := directoryrepo.NewPostgresRepo(d.Pool)
+	dirSvc := directorysvc.NewService(dirRepo)
+	dirH := directoryapi.NewHandler(dirSvc)
 
 	r := server.NewRouter(server.RouterDeps{
 		Cfg:             d.Cfg,

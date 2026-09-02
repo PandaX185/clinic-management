@@ -1,62 +1,21 @@
-package directory
+package api
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
+	"github.com/PandaX185/clinic-management/internal/directory/service"
+	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 )
 
 type Handler struct {
-	svc *Service
+	svc *service.Service
 }
 
-func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
-
-type profileResponse struct {
-	ID          string   `json:"id"`
-	UserID      string   `json:"user_id"`
-	DisplayName string   `json:"display_name"`
-	Status      string   `json:"status"`
-	Roles       []string `json:"roles"`
-	CreatedAt   string   `json:"created_at"`
-}
-
-type createProfileInput struct {
-	UserID      string `json:"user_id" binding:"required,uuid"`
-	DisplayName string `json:"display_name" binding:"required,max=255"`
-	Role        string `json:"role"`
-}
-
-type profilesListResponse struct {
-	Items []profileResponse `json:"items"`
-}
-
-type typeResponse struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	DurationMinutes int32  `json:"duration_minutes"`
-	Price           string `json:"price"`
-	Color           string `json:"color,omitempty"`
-	Icon            string `json:"icon,omitempty"`
-	CreatedAt       string `json:"created_at"`
-}
-
-type typesListResponse struct {
-	Items []typeResponse `json:"items"`
-}
-
-type typeInput struct {
-	Name            string `json:"name" binding:"required,max=100"`
-	DurationMinutes int32  `json:"duration_minutes" binding:"required"`
-	Price           string `json:"price"`
-	Color           string `json:"color"`
-	Icon            string `json:"icon"`
-}
+func NewHandler(svc *service.Service) *Handler { return &Handler{svc: svc} }
 
 // RegisterRoutes mounts tenant-scoped directory endpoints (X-Tenant-ID
 // required; resolved per clinic). Profile creation and type mutations are
@@ -116,7 +75,7 @@ func (h *Handler) CreateProfile(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	uid, err := uuid.Parse(in.UserID)
+	uid, err := httpctx.ParseUUID(in.UserID)
 	if err != nil {
 		c.Error(apperr.Invalid("invalid user_id"))
 		return
@@ -184,7 +143,7 @@ func (h *Handler) CreateType(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	t, err := h.svc.CreateAppointmentType(c.Request.Context(), AppointmentType{
+	t, err := h.svc.CreateAppointmentType(c.Request.Context(), service.AppointmentType{
 		Name:            in.Name,
 		DurationMinutes: in.DurationMinutes,
 		Price:           in.Price,
@@ -213,7 +172,7 @@ func (h *Handler) CreateType(c *gin.Context) {
 // @Failure 404 {object} apperr.ErrorResponse
 // @Router /appointment-types/{id} [put]
 func (h *Handler) UpdateType(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := httpctx.ParseUUIDParam(c, "id")
 	if err != nil {
 		c.Error(apperr.Invalid("invalid id"))
 		return
@@ -223,7 +182,7 @@ func (h *Handler) UpdateType(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	t, err := h.svc.UpdateAppointmentType(c.Request.Context(), id, AppointmentType{
+	t, err := h.svc.UpdateAppointmentType(c.Request.Context(), id, service.AppointmentType{
 		Name:            in.Name,
 		DurationMinutes: in.DurationMinutes,
 		Price:           in.Price,
@@ -235,47 +194,4 @@ func (h *Handler) UpdateType(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, toTypeResponse(t))
-}
-
-func toProfileResponse(p *Profile) profileResponse {
-	roles := p.Roles
-	if roles == nil {
-		roles = []string{}
-	}
-	return profileResponse{
-		ID:          p.ID.String(),
-		UserID:      p.UserID.String(),
-		DisplayName: p.DisplayName,
-		Status:      p.Status,
-		Roles:       roles,
-		CreatedAt:   p.CreatedAt,
-	}
-}
-
-func toProfileResponses(items []Profile) []profileResponse {
-	out := make([]profileResponse, 0, len(items))
-	for i := range items {
-		out = append(out, toProfileResponse(&items[i]))
-	}
-	return out
-}
-
-func toTypeResponse(t *AppointmentType) typeResponse {
-	return typeResponse{
-		ID:              t.ID.String(),
-		Name:            t.Name,
-		DurationMinutes: t.DurationMinutes,
-		Price:           t.Price,
-		Color:           t.Color,
-		Icon:            t.Icon,
-		CreatedAt:       t.CreatedAt,
-	}
-}
-
-func toTypeResponses(items []AppointmentType) []typeResponse {
-	out := make([]typeResponse, 0, len(items))
-	for i := range items {
-		out = append(out, toTypeResponse(&items[i]))
-	}
-	return out
 }

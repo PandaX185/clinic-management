@@ -1,4 +1,8 @@
-package directory
+// Package repo holds the PostgreSQL adapter that satisfies the directory
+// service's persistence port (service.Repo). It reads from the active tenant
+// schema via ScopedPool; cfg persistence depends on the service boundary,
+// never the other way around.
+package repo
 
 import (
 	"context"
@@ -13,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/PandaX185/clinic-management/internal/directory/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
@@ -26,16 +31,16 @@ func NewPostgresRepo(pool *pgxpool.Pool) *PostgresRepo {
 	return &PostgresRepo{scoped: database.NewScopedPool(pool)}
 }
 
-func (r *PostgresRepo) ListProfiles(ctx context.Context) ([]Profile, error) {
-	var out []Profile
+func (r *PostgresRepo) ListProfiles(ctx context.Context) ([]service.Profile, error) {
+	var out []service.Profile
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		rows, err := db.New(tx).ListProfiles(ctx)
 		if err != nil {
 			return apperr.Internal(err)
 		}
-		out = make([]Profile, 0, len(rows))
+		out = make([]service.Profile, 0, len(rows))
 		for _, row := range rows {
-			p := Profile{
+			p := service.Profile{
 				ID:          row.ID,
 				UserID:      row.UserID,
 				DisplayName: row.DisplayName,
@@ -56,16 +61,16 @@ func (r *PostgresRepo) ListProfiles(ctx context.Context) ([]Profile, error) {
 	return out, nil
 }
 
-func (r *PostgresRepo) ListDoctors(ctx context.Context) ([]Profile, error) {
-	var out []Profile
+func (r *PostgresRepo) ListDoctors(ctx context.Context) ([]service.Profile, error) {
+	var out []service.Profile
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		rows, err := db.New(tx).ListProfilesByRole(ctx, "doctor")
 		if err != nil {
 			return apperr.Internal(err)
 		}
-		out = make([]Profile, 0, len(rows))
+		out = make([]service.Profile, 0, len(rows))
 		for _, row := range rows {
-			out = append(out, Profile{
+			out = append(out, service.Profile{
 				ID:          row.ID,
 				UserID:      row.UserID,
 				DisplayName: row.DisplayName,
@@ -83,8 +88,8 @@ func (r *PostgresRepo) ListDoctors(ctx context.Context) ([]Profile, error) {
 	return out, nil
 }
 
-func (r *PostgresRepo) CreateProfile(ctx context.Context, userID uuid.UUID, displayName, role string) (*Profile, error) {
-	var out Profile
+func (r *PostgresRepo) CreateProfile(ctx context.Context, userID uuid.UUID, displayName, role string) (*service.Profile, error) {
+	var out service.Profile
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		q := db.New(tx)
 		prof, err := q.CreateProfile(ctx, db.CreateProfileParams{UserID: userID, DisplayName: displayName})
@@ -110,7 +115,7 @@ func (r *PostgresRepo) CreateProfile(ctx context.Context, userID uuid.UUID, disp
 		if err := q.AssignRoleToProfile(ctx, db.AssignRoleToProfileParams{ProfileID: prof.ID, RoleID: rl.ID}); err != nil {
 			return apperr.Internal(err)
 		}
-		out = Profile{
+		out = service.Profile{
 			ID:          prof.ID,
 			UserID:      prof.UserID,
 			DisplayName: prof.DisplayName,
@@ -127,14 +132,14 @@ func (r *PostgresRepo) CreateProfile(ctx context.Context, userID uuid.UUID, disp
 	return &out, nil
 }
 
-func (r *PostgresRepo) ListAppointmentTypes(ctx context.Context) ([]AppointmentType, error) {
-	var out []AppointmentType
+func (r *PostgresRepo) ListAppointmentTypes(ctx context.Context) ([]service.AppointmentType, error) {
+	var out []service.AppointmentType
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		rows, err := db.New(tx).ListAppointmentTypes(ctx)
 		if err != nil {
 			return apperr.Internal(err)
 		}
-		out = make([]AppointmentType, 0, len(rows))
+		out = make([]service.AppointmentType, 0, len(rows))
 		for _, row := range rows {
 			out = append(out, toType(row))
 		}
@@ -146,8 +151,8 @@ func (r *PostgresRepo) ListAppointmentTypes(ctx context.Context) ([]AppointmentT
 	return out, nil
 }
 
-func (r *PostgresRepo) GetAppointmentType(ctx context.Context, id uuid.UUID) (*AppointmentType, error) {
-	var out *AppointmentType
+func (r *PostgresRepo) GetAppointmentType(ctx context.Context, id uuid.UUID) (*service.AppointmentType, error) {
+	var out *service.AppointmentType
 	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		row, err := db.New(tx).GetAppointmentTypeByID(ctx, id)
 		if err != nil {
@@ -166,12 +171,12 @@ func (r *PostgresRepo) GetAppointmentType(ctx context.Context, id uuid.UUID) (*A
 	return out, nil
 }
 
-func (r *PostgresRepo) CreateAppointmentType(ctx context.Context, in AppointmentType) (*AppointmentType, error) {
+func (r *PostgresRepo) CreateAppointmentType(ctx context.Context, in service.AppointmentType) (*service.AppointmentType, error) {
 	price, err := decimalMoney(in.Price)
 	if err != nil {
 		return nil, err
 	}
-	var out *AppointmentType
+	var out *service.AppointmentType
 	err = r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		row, err := db.New(tx).CreateAppointmentType(ctx, db.CreateAppointmentTypeParams{
 			Name:            in.Name,
@@ -193,12 +198,12 @@ func (r *PostgresRepo) CreateAppointmentType(ctx context.Context, in Appointment
 	return out, nil
 }
 
-func (r *PostgresRepo) UpdateAppointmentType(ctx context.Context, in AppointmentType) (*AppointmentType, error) {
+func (r *PostgresRepo) UpdateAppointmentType(ctx context.Context, in service.AppointmentType) (*service.AppointmentType, error) {
 	price, err := decimalMoney(in.Price)
 	if err != nil {
 		return nil, err
 	}
-	var out *AppointmentType
+	var out *service.AppointmentType
 	err = r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
 		row, err := db.New(tx).UpdateAppointmentType(ctx, db.UpdateAppointmentTypeParams{
 			ID:              in.ID,
@@ -239,8 +244,8 @@ func decimalMoney(s string) (pgtype.Numeric, error) {
 	return n, nil
 }
 
-func toType(row db.AppointmentType) AppointmentType {
-	out := AppointmentType{
+func toType(row db.AppointmentType) service.AppointmentType {
+	out := service.AppointmentType{
 		ID:              row.ID,
 		Name:            row.Name,
 		DurationMinutes: row.DurationMinutes,

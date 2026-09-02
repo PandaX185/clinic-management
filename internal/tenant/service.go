@@ -93,18 +93,15 @@ func (s *Service) Create(ctx context.Context, creatorID uuid.UUID, name, rawSlug
 
 func (s *Service) List(ctx context.Context) ([]Tenant, error) { return s.store.ListTenants(ctx) }
 
-// ListForUser returns clinics relevant to this user: staff bindings for
-// employees; every active clinic for patients. A user with no bindings is
-// treated as a patient (global browsing).
+// ListForUser returns the clinics the user has an explicit membership in.
+// A user with no bindings has no clinics; this is used by "my clinics" so it
+// must not fall back to the global active-clinic list.
 func (s *Service) ListForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
 	bindings, err := s.store.TenantsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if len(bindings) > 0 {
-		return bindings, nil
-	}
-	return s.store.ListTenants(ctx)
+	return bindings, nil
 }
 
 // SlugForTenant validates the tenant exists and is active. The returned slug

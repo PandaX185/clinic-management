@@ -9,6 +9,7 @@ import (
 
 	auth "github.com/PandaX185/clinic-management/internal/auth"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 )
 
 const idempotencyHeader = "Idempotency-Key"
@@ -302,40 +303,17 @@ func (h *Handler) MarkNoShow(c *gin.Context) {
 }
 
 func parseID(c *gin.Context) (uuid.UUID, error) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		return uuid.Nil, apperr.Invalid("invalid id format")
-	}
-	return id, nil
-}
-
-func actorID(c *gin.Context) *uuid.UUID {
-	v, ok := c.Get("auth_user_id")
-	if !ok {
-		return nil
-	}
-	s, ok := v.(string)
-	if !ok {
-		return nil
-	}
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return nil
-	}
-	return &id
+	return httpctx.ParseUUIDParam(c, "id")
 }
 
 // accessContextOf builds the service-level AccessContext from middleware-set
 // identity claims.
 func accessContextOf(c *gin.Context) AccessContext {
-	ac := AccessContext{ActorID: actorID(c)}
-	if ac.ActorID != nil {
-		ac.UserID = *ac.ActorID
-	}
-	if raw, ok := c.Get("auth_roles"); ok {
-		if roles, ok := raw.([]string); ok {
-			ac.Roles = roles
-		}
+	ac := AccessContext{Roles: httpctx.Roles(c)}
+	uid, err := httpctx.UserID(c)
+	if err == nil {
+		ac.UserID = uid
+		ac.ActorID = &uid
 	}
 	return ac
 }

@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	auth "github.com/PandaX185/clinic-management/internal/auth"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 )
 
 type Handler struct {
@@ -63,11 +63,10 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": toResponses(items)})
 }
 
-// ListMine returns the clinics relevant to the caller: staff bindings if
-// they have any, otherwise every active clinic.
+// ListMine returns the clinics the caller is a member of.
 //
 // @Summary List my clinics
-// @Description Returns the clinics the current user has a profile in; falls back to all active clinics when the user has no staff bindings.
+// @Description Returns the clinics the current user has a membership in; an empty list when the user has no clinics.
 // @Tags tenants
 // @Produce json
 // @Security BearerAuth
@@ -145,12 +144,12 @@ func (h *Handler) BindStaff(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	tid, err := parseUUID(c.Param("id"))
+	tid, err := httpctx.ParseUUIDParam(c, "id")
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	uid, err := parseUUID(in.UserID)
+	uid, err := httpctx.ParseUUID(in.UserID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -184,17 +183,5 @@ func toResponses(items []Tenant) []tenantResponse {
 }
 
 func parseUserID(c *gin.Context) (uuid.UUID, error) {
-	v, ok := c.Get(auth.CtxUserID)
-	if !ok {
-		return uuid.Nil, apperr.Unauthorized("unauthenticated")
-	}
-	return parseUUID(v.(string))
-}
-
-func parseUUID(s string) (uuid.UUID, error) {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return uuid.Nil, apperr.Invalid("invalid id format")
-	}
-	return id, nil
+	return httpctx.UserID(c)
 }

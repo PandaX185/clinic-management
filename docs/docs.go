@@ -1086,7 +1086,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/tenant.tenantsListResponse"
+                            "$ref": "#/definitions/api.tenantsListResponse"
                         }
                     },
                     "500": {
@@ -1121,7 +1121,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/tenant.createTenantInput"
+                            "$ref": "#/definitions/api.createTenantInput"
                         }
                     }
                 ],
@@ -1129,7 +1129,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/tenant.tenantResponse"
+                            "$ref": "#/definitions/api.tenantResponse"
                         }
                     },
                     "400": {
@@ -1172,7 +1172,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/tenant.tenantsListResponse"
+                            "$ref": "#/definitions/api.tenantsListResponse"
                         }
                     },
                     "401": {
@@ -1229,7 +1229,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/tenant.bindStaffInput"
+                            "$ref": "#/definitions/api.bindStaffInput"
                         }
                     }
                 ],
@@ -1237,7 +1237,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/tenant.bindStaffResponse"
+                            "$ref": "#/definitions/api.bindStaffResponse"
                         }
                     },
                     "400": {
@@ -1263,6 +1263,73 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.bindStaffInput": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.bindStaffResponse": {
+            "type": "object",
+            "properties": {
+                "bound": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.createTenantInput": {
+            "type": "object",
+            "required": [
+                "name",
+                "slug"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "slug": {
+                    "type": "string",
+                    "maxLength": 63
+                }
+            }
+        },
+        "api.tenantResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.tenantsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.tenantResponse"
+                    }
+                }
+            }
+        },
         "api.userResponse": {
             "type": "object",
             "properties": {
@@ -1590,73 +1657,6 @@ const docTemplate = `{
                 },
                 "tenant_slug": {
                     "type": "string"
-                }
-            }
-        },
-        "tenant.bindStaffInput": {
-            "type": "object",
-            "required": [
-                "user_id"
-            ],
-            "properties": {
-                "role": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "tenant.bindStaffResponse": {
-            "type": "object",
-            "properties": {
-                "bound": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "tenant.createTenantInput": {
-            "type": "object",
-            "required": [
-                "name",
-                "slug"
-            ],
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "slug": {
-                    "type": "string",
-                    "maxLength": 63
-                }
-            }
-        },
-        "tenant.tenantResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "is_active": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "slug": {
-                    "type": "string"
-                }
-            }
-        },
-        "tenant.tenantsListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/tenant.tenantResponse"
-                    }
                 }
             }
         }

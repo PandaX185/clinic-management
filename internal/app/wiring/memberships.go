@@ -11,7 +11,7 @@ import (
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
-	"github.com/PandaX185/clinic-management/internal/tenant"
+	tenantrepo "github.com/PandaX185/clinic-management/internal/tenant/repo"
 )
 
 // tenantMembershipProvider implements auth.Service's membership port using the
@@ -20,7 +20,7 @@ import (
 // imports auth for its handler).
 type tenantMembershipProvider struct {
 	pool  *pgxpool.Pool
-	store *tenant.PostgresStore
+	store *tenantrepo.PostgresStore
 }
 
 // MembershipsForUser returns the clinics the user is a member of with their

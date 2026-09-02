@@ -1,41 +1,20 @@
-package tenant
+package api
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
+	"github.com/PandaX185/clinic-management/internal/tenant/service"
 )
 
 type Handler struct {
-	svc *Service
+	svc *service.Service
 }
 
-func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
-
-type tenantResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Slug     string `json:"slug"`
-	IsActive bool   `json:"is_active"`
-}
-
-type tenantsListResponse struct {
-	Items []tenantResponse `json:"items"`
-}
-
-type createTenantInput struct {
-	Name string `json:"name" binding:"required,max=255"`
-	Slug string `json:"slug" binding:"required,max=63"`
-}
-
-type bindStaffInput struct {
-	UserID string `json:"user_id" binding:"required,uuid"`
-	Role   string `json:"role"`
-}
+func NewHandler(svc *service.Service) *Handler { return &Handler{svc: svc} }
 
 // RegisterRoutes mounts global (auth-only) tenant endpoints. These do NOT
 // require X-Tenant-ID — browsing clinics is always allowed.
@@ -75,7 +54,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Failure 500 {object} apperr.ErrorResponse
 // @Router /tenants/mine [get]
 func (h *Handler) ListMine(c *gin.Context) {
-	userID, err := parseUserID(c)
+	userID, err := httpctx.UserID(c)
 	if err != nil {
 		c.Error(err)
 		return
@@ -109,7 +88,7 @@ func (h *Handler) Create(c *gin.Context) {
 		c.Error(apperr.Invalid("invalid request body"))
 		return
 	}
-	creatorID, err := parseUserID(c)
+	creatorID, err := httpctx.UserID(c)
 	if err != nil {
 		c.Error(err)
 		return
@@ -159,29 +138,4 @@ func (h *Handler) BindStaff(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"bound": true})
-}
-
-type bindStaffResponse struct {
-	Bound bool `json:"bound"`
-}
-
-func toResponse(t *Tenant) tenantResponse {
-	return tenantResponse{
-		ID:       t.ID.String(),
-		Name:     t.Name,
-		Slug:     t.Slug,
-		IsActive: t.IsActive,
-	}
-}
-
-func toResponses(items []Tenant) []tenantResponse {
-	out := make([]tenantResponse, 0, len(items))
-	for i := range items {
-		out = append(out, toResponse(&items[i]))
-	}
-	return out
-}
-
-func parseUserID(c *gin.Context) (uuid.UUID, error) {
-	return httpctx.UserID(c)
 }

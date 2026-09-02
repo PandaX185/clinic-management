@@ -13,7 +13,8 @@ import (
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	directory "github.com/PandaX185/clinic-management/internal/directory"
-	tenant "github.com/PandaX185/clinic-management/internal/tenant"
+	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
+	tenantsvc "github.com/PandaX185/clinic-management/internal/tenant/service"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
@@ -26,8 +27,8 @@ type RouterDeps struct {
 	AuthH           *authapi.Handler
 	AuthSvc         *authsvc.Service
 	AppointH        *appt.Handler
-	TenantH         *tenant.Handler
-	TenantSvc       *tenant.Service
+	TenantH         *tenantapi.Handler
+	TenantSvc       *tenantsvc.Service
 	ProfileResolver ProfileResolver
 	DirectoryH      *directory.Handler
 	Metrics         *metrics.Metrics

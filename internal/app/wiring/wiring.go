@@ -14,7 +14,9 @@ import (
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	directory "github.com/PandaX185/clinic-management/internal/directory"
 	server "github.com/PandaX185/clinic-management/internal/server"
-	tenant "github.com/PandaX185/clinic-management/internal/tenant"
+	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
+	tenantrepo "github.com/PandaX185/clinic-management/internal/tenant/repo"
+	tenantsvc "github.com/PandaX185/clinic-management/internal/tenant/service"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
@@ -51,10 +53,10 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	authSvc := authsvc.NewService(authRepo, tokens)
 	authH := authapi.NewHandler(authSvc)
 
-	tenantStore := tenant.NewPostgresStore(d.Pool)
-	profileStore := tenant.NewScopedProfileStore(d.Pool)
-	tenantSvc := tenant.NewService(tenantStore, profileStore, tenantStore)
-	tenantH := tenant.NewHandler(tenantSvc)
+	tenantStore := tenantrepo.NewPostgresStore(d.Pool)
+	profileStore := tenantrepo.NewScopedProfileStore(d.Pool)
+	tenantSvc := tenantsvc.NewService(tenantStore, profileStore, tenantStore)
+	tenantH := tenantapi.NewHandler(tenantSvc)
 
 	// Real "my clinics" resolution for /auth/tenants: global user_tenants
 	// index + per-tenant role lookup. Defined here to keep auth→tenant acyclic.

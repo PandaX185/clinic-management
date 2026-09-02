@@ -1,4 +1,4 @@
-package tenant
+package repo
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 )
 
-// PostgresProfileStore is a ProfileStore implementation that reads from
-// the active tenant schema via ScopedPool. The tenant slug is carried on the
-// context by TenantMiddleware (database.WithTenantSlug) and is the only
-// permitted source of the schema name.
+// PostgresProfileStore is a service.ProfileStore implementation that reads
+// from the active tenant schema via ScopedPool. The tenant slug is carried
+// on the context by TenantMiddleware (database.WithTenantSlug) and is the
+// only permitted source of the schema name.
 type PostgresProfileStore struct {
 	pool *pgxpool.Pool
 }
@@ -28,8 +28,8 @@ func NewScopedProfileStore(pool *pgxpool.Pool) *PostgresProfileStore {
 
 // RoleForUser returns every role the caller holds in the active tenant. The
 // caller must have pinned the tenant slug on ctx (via TenantMiddleware); an
-// absent slug fails closed with an empty slice so the middleware falls back to
-// patient-level access rather than guessing a schema.
+// absent slug fails closed with an empty slice so the middleware falls back
+// to patient-level access rather than guessing a schema.
 func (s *PostgresProfileStore) RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
 	slug := database.TenantSlugFrom(ctx)
 	if slug == "" {

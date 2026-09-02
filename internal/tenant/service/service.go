@@ -1,4 +1,4 @@
-package tenant
+package service
 
 import (
 	"context"
@@ -8,51 +8,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 )
 
-// PoolProvider provides access to a pgx connection pool.
-type PoolProvider interface {
-	Pool() *pgxpool.Pool
-}
-
 var slugRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
-
-// ProfileResolver resolves user identities to domain profiles across tenants.
-type ProfileResolver interface {
-	PatientIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
-	DoctorIDForUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
-}
-
-type Tenant struct {
-	ID       uuid.UUID
-	Name     string
-	Slug     string
-	IsActive bool
-}
-
-// Store is the global-registry surface (tenants, user_tenants bindings).
-type Store interface {
-	CreateTenant(ctx context.Context, name, slug string) (*Tenant, error)
-	GetTenantByID(ctx context.Context, id uuid.UUID) (*Tenant, error)
-	ListTenants(ctx context.Context) ([]Tenant, error)
-	SetTenantActive(ctx context.Context, id uuid.UUID, active bool) error
-	TenantsForUser(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
-	RecordMembership(ctx context.Context, userID, tenantID uuid.UUID) error
-	Pool() *pgxpool.Pool
-}
-
-// ProfileStore resolves per-tenant roles inside the active clinic's schema.
-type ProfileStore interface {
-	// RoleForUser returns the caller's role in the active tenant; empty
-	// means no profile yet (patient-level access).
-	RoleForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
-	EnsurePatientProfile(ctx context.Context, userID uuid.UUID) error
-}
 
 type Service struct {
 	store   Store

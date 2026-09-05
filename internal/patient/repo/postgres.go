@@ -79,14 +79,23 @@ func (r *PostgresRepository) GetClinic(ctx context.Context, clinicID uuid.UUID) 
 
 // ListAppointments fans out to every active clinic, collecting the patient's
 // appointments wherever they have a profile. Results are merged newest first.
+// Tenants without a provisioned schema are skipped rather than poisoning the
+// whole scan.
 func (r *PostgresRepository) ListAppointments(ctx context.Context, userID uuid.UUID) ([]patientsvc.Appointment, error) {
 	tenants, err := db.New(r.pool).ListTenants(ctx)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	existing, err := database.ExistingTenantSchemas(ctx, r.pool)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
 
 	out := make([]patientsvc.Appointment, 0, 8)
 	for _, tenant := range tenants {
+		if _, ok := existing[database.SchemaName(tenant.Slug)]; !ok {
+			continue
+		}
 		err := r.scoped.WithSchema(ctx, tenant.Slug, func(tx pgx.Tx) error {
 			rows, err := db.New(tx).ListAppointmentsByUser(ctx, userID)
 			if err != nil {

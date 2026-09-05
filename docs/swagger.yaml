@@ -1,41 +1,5 @@
 basePath: /api/v1
 definitions:
-  api.appointmentResponse:
-    properties:
-      cancellation_reason:
-        type: string
-      created_at:
-        type: string
-      doctor_id:
-        type: string
-      end_time:
-        type: string
-      id:
-        type: string
-      notes:
-        type: string
-      patient_id:
-        type: string
-      start_time:
-        type: string
-      status:
-        type: string
-      version:
-        type: integer
-    type: object
-  api.appointmentsListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/api.appointmentResponse'
-        type: array
-      limit:
-        type: integer
-      offset:
-        type: integer
-      total:
-        type: integer
-    type: object
   api.bindStaffInput:
     properties:
       role:
@@ -49,6 +13,96 @@ definitions:
     properties:
       bound:
         type: boolean
+    type: object
+  api.bookInput:
+    properties:
+      clinic_id:
+        type: string
+      doctor_id:
+        type: string
+      duration_minutes:
+        type: integer
+      notes:
+        type: string
+      start_time:
+        type: string
+    required:
+    - clinic_id
+    - doctor_id
+    - start_time
+    type: object
+  api.cancelInput:
+    properties:
+      clinic_id:
+        type: string
+      reason:
+        type: string
+    required:
+    - clinic_id
+    - reason
+    type: object
+  api.clinicDetailResponse:
+    properties:
+      address:
+        type: string
+      city:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      doctors:
+        items:
+          $ref: '#/definitions/api.doctorResponse'
+        type: array
+      email:
+        type: string
+      hours:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      services:
+        items:
+          $ref: '#/definitions/api.serviceItemResponse'
+        type: array
+      slug:
+        type: string
+    type: object
+  api.clinicListItem:
+    properties:
+      address:
+        type: string
+      city:
+        type: string
+      created_at:
+        type: string
+      hours:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      slug:
+        type: string
+    type: object
+  api.clinicsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.clinicListItem'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.pagination'
     type: object
   api.createProfileInput:
     properties:
@@ -75,6 +129,37 @@ definitions:
     - name
     - slug
     type: object
+  api.doctorResponse:
+    properties:
+      clinic_id:
+        type: string
+      clinic_name:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      specialty:
+        type: string
+    type: object
+  api.doctorsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.doctorResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.pagination'
+    type: object
+  api.pagination:
+    properties:
+      page:
+        type: integer
+      size:
+        type: integer
+      total:
+        type: integer
+    type: object
   api.profileResponse:
     properties:
       created_at:
@@ -97,6 +182,47 @@ definitions:
       items:
         items:
           $ref: '#/definitions/api.profileResponse'
+        type: array
+    type: object
+  api.rescheduleInput:
+    properties:
+      clinic_id:
+        type: string
+      duration_minutes:
+        type: integer
+      start_time:
+        type: string
+    required:
+    - clinic_id
+    - start_time
+    type: object
+  api.serviceItemResponse:
+    properties:
+      duration_min:
+        type: integer
+      id:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+    type: object
+  api.slotResponse:
+    properties:
+      appointment_type_id:
+        type: string
+      doctor_id:
+        type: string
+      end:
+        type: string
+      start:
+        type: string
+    type: object
+  api.slotsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.slotResponse'
         type: array
     type: object
   api.tenantResponse:
@@ -158,25 +284,59 @@ definitions:
           $ref: '#/definitions/api.typeResponse'
         type: array
     type: object
-  api.userResponse:
+  api.updateUserInput:
     properties:
-      created_at:
-        type: string
       full_name:
+        maxLength: 255
         type: string
-      id:
-        type: string
-      is_active:
-        type: boolean
       phone:
         type: string
+    required:
+    - full_name
+    - phone
     type: object
   apperr.ErrorResponse:
     properties:
       error:
         type: string
     type: object
-  service.BookInput:
+  github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse:
+    properties:
+      cancellation_reason:
+        type: string
+      created_at:
+        type: string
+      doctor_id:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      version:
+        type: integer
+    type: object
+  github_com_PandaX185_clinic-management_internal_appointment_api.appointmentsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  github_com_PandaX185_clinic-management_internal_appointment_service.BookInput:
     properties:
       doctor_id:
         type: string
@@ -195,6 +355,70 @@ definitions:
     - duration_minutes
     - patient_id
     - start_time
+    type: object
+  github_com_PandaX185_clinic-management_internal_appointment_service.RescheduleInput:
+    properties:
+      duration_minutes:
+        maximum: 480
+        minimum: 5
+        type: integer
+      start_time:
+        type: string
+    required:
+    - duration_minutes
+    - start_time
+    type: object
+  github_com_PandaX185_clinic-management_internal_auth_api.userResponse:
+    properties:
+      created_at:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phone:
+        type: string
+    type: object
+  github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse:
+    properties:
+      appointment_type_id:
+        type: string
+      clinic_id:
+        type: string
+      clinic_name:
+        type: string
+      doctor_id:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+    type: object
+  github_com_PandaX185_clinic-management_internal_patient_api.appointmentsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+        type: array
+    type: object
+  github_com_PandaX185_clinic-management_internal_patient_api.userResponse:
+    properties:
+      full_name:
+        type: string
+      id:
+        type: string
+      phone:
+        type: string
     type: object
   service.CancelInput:
     properties:
@@ -230,28 +454,15 @@ definitions:
     - password
     - phone
     type: object
-  service.RescheduleInput:
-    properties:
-      duration_minutes:
-        maximum: 480
-        minimum: 5
-        type: integer
-      start_time:
-        type: string
-    required:
-    - duration_minutes
-    - start_time
-    type: object
   service.TokenPair:
     properties:
-      accessToken:
+      access_token:
         type: string
-      expiresIn:
-        format: int64
+      expires_in:
         type: integer
-      refreshToken:
+      refresh_token:
         type: string
-      tokenType:
+      token_type:
         type: string
     type: object
   service.UserTenant:
@@ -437,7 +648,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentsListResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentsListResponse'
         "400":
           description: Bad Request
           schema:
@@ -473,14 +684,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/service.BookInput'
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_service.BookInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -522,7 +733,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -568,7 +779,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -607,7 +818,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -642,7 +853,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -677,7 +888,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -713,14 +924,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/service.RescheduleInput'
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_service.RescheduleInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -793,7 +1004,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.userResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_auth_api.userResponse'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -840,7 +1051,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/api.userResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_auth_api.userResponse'
       summary: Register a new patient account
       tags:
       - auth
@@ -893,6 +1104,238 @@ paths:
       summary: List doctors
       tags:
       - directory
+  /patient/appointments:
+    get:
+      description: Returns the patient's appointments across every clinic they attend.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentsListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List my appointments
+      tags:
+      - patient
+    post:
+      consumes:
+      - application/json
+      description: Books a new appointment for the patient at the given clinic. The
+        patient profile is provisioned on first booking.
+      parameters:
+      - description: Booking details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.bookInput'
+      - description: Client-generated idempotency key to make the booking repeatable
+        in: header
+        name: Idempotency-Key
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Book an appointment
+      tags:
+      - patient
+  /patient/appointments/{id}:
+    get:
+      description: Returns one of the patient's appointments. The clinic it belongs
+        to is passed explicitly.
+      parameters:
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Clinic the appointment belongs to
+        in: query
+        name: clinic_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my appointment
+      tags:
+      - patient
+  /patient/appointments/{id}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancels one of the patient's appointments in the given clinic with
+        a required reason.
+      parameters:
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Clinic and cancellation reason
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.cancelInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel my appointment
+      tags:
+      - patient
+  /patient/appointments/{id}/reschedule:
+    post:
+      consumes:
+      - application/json
+      description: Moves one of the patient's appointments to a new time in the same
+        clinic.
+      parameters:
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Clinic and new timing
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.rescheduleInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reschedule my appointment
+      tags:
+      - patient
+  /patient/me:
+    get:
+      description: Returns the patient's global identity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.userResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my profile
+      tags:
+      - patient
+    put:
+      consumes:
+      - application/json
+      description: Updates the patient's display name and phone.
+      parameters:
+      - description: Identity fields
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.updateUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.userResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update my profile
+      tags:
+      - patient
   /profiles:
     get:
       description: Returns every person registered in the active clinic (X-Tenant-ID),
@@ -968,6 +1411,158 @@ paths:
       summary: Register a profile
       tags:
       - directory
+  /public/clinics:
+    get:
+      description: Returns active clinics for public discovery, paginated.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.clinicsListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: List clinics
+      tags:
+      - public
+  /public/clinics/{id}:
+    get:
+      description: Returns a clinic's public profile with its services and doctors.
+      parameters:
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.clinicDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: Get clinic
+      tags:
+      - public
+  /public/clinics/{id}/doctors:
+    get:
+      description: Returns the doctors practising at a clinic, paginated.
+      parameters:
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.doctorsListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: List clinic doctors
+      tags:
+      - public
+  /public/clinics/{id}/slots:
+    get:
+      description: Returns open booking windows for a doctor at a clinic on a date.
+      parameters:
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Doctor profile id
+        in: query
+        name: doctor_id
+        required: true
+        type: string
+      - description: Date in YYYY-MM-DD
+        in: query
+        name: date
+        required: true
+        type: string
+      - description: Appointment type id (uses clinic default when absent)
+        in: query
+        name: appointment_type_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.slotsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: Get available slots
+      tags:
+      - public
+  /public/doctors/{id}:
+    get:
+      description: Returns a doctor regardless of which clinic they practise at.
+      parameters:
+      - description: Doctor profile id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.doctorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: Get doctor
+      tags:
+      - public
   /tenants:
     get:
       description: Returns all active clinics. Patients may browse the full registry.

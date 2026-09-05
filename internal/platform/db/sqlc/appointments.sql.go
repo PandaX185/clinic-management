@@ -282,22 +282,22 @@ SELECT id, profile_id, doctor_profile_id, appointment_type_id,
     version, created_by, created_at, updated_at
 FROM appointments
 WHERE doctor_profile_id = $1
-  AND scheduled_start < $3
   AND scheduled_end > $2
+  AND scheduled_start < $3
   AND status IN ('scheduled', 'confirmed')
 ORDER BY scheduled_start
 `
 
 type ListAppointmentsForDoctorDateParams struct {
 	DoctorProfileID uuid.UUID
-	ScheduledEnd    time.Time
-	ScheduledStart  time.Time
+	From            time.Time
+	To              time.Time
 }
 
 // Appointments overlapping the [from, to) window for a doctor; used to
 // compute busy intervals when building available slots.
 func (q *Queries) ListAppointmentsForDoctorDate(ctx context.Context, arg ListAppointmentsForDoctorDateParams) ([]Appointment, error) {
-	rows, err := q.db.Query(ctx, listAppointmentsForDoctorDate, arg.DoctorProfileID, arg.ScheduledEnd, arg.ScheduledStart)
+	rows, err := q.db.Query(ctx, listAppointmentsForDoctorDate, arg.DoctorProfileID, arg.From, arg.To)
 	if err != nil {
 		return nil, err
 	}

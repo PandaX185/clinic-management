@@ -44,9 +44,10 @@ type AppointmentType struct {
 type DoctorSchedule struct {
 	ID              uuid.UUID
 	DoctorProfileID uuid.UUID
-	DayOfWeek       int32
+	DayOfWeek       int16
 	StartTime       pgtype.Time
 	EndTime         pgtype.Time
+	SlotDuration    int32
 	IsActive        bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

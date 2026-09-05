@@ -164,6 +164,10 @@ func normalizePage(page, size int) (int, int) {
 	if page < 1 {
 		page = 1
 	}
+	// (page-1)*size must not overflow int; PG offsets are int64 anyway.
+	if page > 1_000_000 {
+		page = 1_000_000
+	}
 	if size < 1 || size > maxPageSize {
 		size = 20
 	}

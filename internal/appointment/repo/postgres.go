@@ -140,7 +140,18 @@ func bookInTx(ctx context.Context, tx pgx.Tx, p service.BookTxParams) (service.B
 			if stored.RequestHash != "" && stored.RequestHash != p.RequestHash {
 				return service.BookingResult{}, apperr.Conflict("idempotency key was already used with a different request body")
 			}
-			return service.BookingResult{Replayed: true, StoredStatus: int(stored.ResponseStatus), StoredBody: rawJSON(stored.ResponseBody)}, nil
+			var replayed service.Appointment
+			if stored.ResponseBody != nil {
+				if err := json.Unmarshal(*stored.ResponseBody, &replayed); err != nil {
+					return service.BookingResult{}, wrapBooking(apperr.Internal(err))
+				}
+			}
+			return service.BookingResult{
+				Replayed:     true,
+				Appointment:  &replayed,
+				StoredStatus: int(stored.ResponseStatus),
+				StoredBody:   rawJSON(stored.ResponseBody),
+			}, nil
 		case !errors.Is(err, pgx.ErrNoRows):
 			return service.BookingResult{}, wrapBooking(apperr.Internal(err))
 		}

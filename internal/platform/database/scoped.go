@@ -43,3 +43,25 @@ func (p *ScopedPool) WithSchema(ctx context.Context, slug string, fn func(tx pgx
 
 // Pool exposes the underlying pool for global-schema (public) queries.
 func (p *ScopedPool) Pool() *pgxpool.Pool { return p.pool }
+
+// ExistingTenantSchemas returns the set of tenant schema names that actually
+// exist in the database. Fan-out scans use it to skip active tenants whose
+// schema was never provisioned (e.g. pre-schema-era records), which would
+// otherwise fail every query against a missing schema.
+func ExistingTenantSchemas(ctx context.Context, pool *pgxpool.Pool) (map[string]struct{}, error) {
+	rows, err := pool.Query(ctx, `SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname LIKE $1 ORDER BY nspname`, `tenant\_%`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	seen := make(map[string]struct{})
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		seen[name] = struct{}{}
+	}
+	return seen, rows.Err()
+}

@@ -263,7 +263,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentsListResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentsListResponse"
                         }
                     },
                     "400": {
@@ -317,7 +317,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.BookInput"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_service.BookInput"
                         }
                     }
                 ],
@@ -325,7 +325,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -390,7 +390,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -461,7 +461,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -520,7 +520,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "403": {
@@ -573,7 +573,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "403": {
@@ -626,7 +626,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "403": {
@@ -683,7 +683,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/service.RescheduleInput"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_service.RescheduleInput"
                         }
                     }
                 ],
@@ -691,7 +691,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.appointmentResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
                         }
                     },
                     "400": {
@@ -802,7 +802,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.userResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_auth_api.userResponse"
                         }
                     }
                 }
@@ -870,7 +870,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/api.userResponse"
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_auth_api.userResponse"
                         }
                     }
                 }
@@ -946,6 +946,365 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/patient/appointments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the patient's appointments across every clinic they attend.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "List my appointments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentsListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Books a new appointment for the patient at the given clinic. The patient profile is provisioned on first booking.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "Book an appointment",
+                "parameters": [
+                    {
+                        "description": "Booking details",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.bookInput"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client-generated idempotency key to make the booking repeatable",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/patient/appointments/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one of the patient's appointments. The clinic it belongs to is passed explicitly.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "Get my appointment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Appointment id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Clinic the appointment belongs to",
+                        "name": "clinic_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/patient/appointments/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancels one of the patient's appointments in the given clinic with a required reason.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "Cancel my appointment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Appointment id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Clinic and cancellation reason",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.cancelInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/patient/appointments/{id}/reschedule": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Moves one of the patient's appointments to a new time in the same clinic.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "Reschedule my appointment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Appointment id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Clinic and new timing",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.rescheduleInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/patient/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the patient's global identity.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "Get my profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.userResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the patient's display name and phone.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "patient"
+                ],
+                "summary": "Update my profile",
+                "parameters": [
+                    {
+                        "description": "Identity fields",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.updateUserInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.userResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/apperr.ErrorResponse"
                         }
@@ -1060,6 +1419,232 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/clinics": {
+            "get": {
+                "description": "Returns active clinics for public discovery, paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "List clinics",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.clinicsListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/clinics/{id}": {
+            "get": {
+                "description": "Returns a clinic's public profile with its services and doctors.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Get clinic",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Clinic id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.clinicDetailResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/clinics/{id}/doctors": {
+            "get": {
+                "description": "Returns the doctors practising at a clinic, paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "List clinic doctors",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Clinic id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.doctorsListResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/clinics/{id}/slots": {
+            "get": {
+                "description": "Returns open booking windows for a doctor at a clinic on a date.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Get available slots",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Clinic id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Doctor profile id",
+                        "name": "doctor_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date in YYYY-MM-DD",
+                        "name": "date",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Appointment type id (uses clinic default when absent)",
+                        "name": "appointment_type_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.slotsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/doctors/{id}": {
+            "get": {
+                "description": "Returns a doctor regardless of which clinic they practise at.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "public"
+                ],
+                "summary": "Get doctor",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Doctor profile id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.doctorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/apperr.ErrorResponse"
                         }
@@ -1263,61 +1848,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "api.appointmentResponse": {
-            "type": "object",
-            "properties": {
-                "cancellation_reason": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "doctor_id": {
-                    "type": "string"
-                },
-                "end_time": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "notes": {
-                    "type": "string"
-                },
-                "patient_id": {
-                    "type": "string"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api.appointmentsListResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api.appointmentResponse"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
         "api.bindStaffInput": {
             "type": "object",
             "required": [
@@ -1337,6 +1867,142 @@ const docTemplate = `{
             "properties": {
                 "bound": {
                     "type": "boolean"
+                }
+            }
+        },
+        "api.bookInput": {
+            "type": "object",
+            "required": [
+                "clinic_id",
+                "doctor_id",
+                "start_time"
+            ],
+            "properties": {
+                "clinic_id": {
+                    "type": "string"
+                },
+                "doctor_id": {
+                    "type": "string"
+                },
+                "duration_minutes": {
+                    "type": "integer"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.cancelInput": {
+            "type": "object",
+            "required": [
+                "clinic_id",
+                "reason"
+            ],
+            "properties": {
+                "clinic_id": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.clinicDetailResponse": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "doctors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.doctorResponse"
+                    }
+                },
+                "email": {
+                    "type": "string"
+                },
+                "hours": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "services": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.serviceItemResponse"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.clinicListItem": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "hours": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.clinicsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.clinicListItem"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/api.pagination"
                 }
             }
         },
@@ -1376,6 +2042,54 @@ const docTemplate = `{
                 }
             }
         },
+        "api.doctorResponse": {
+            "type": "object",
+            "properties": {
+                "clinic_id": {
+                    "type": "string"
+                },
+                "clinic_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "specialty": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.doctorsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.doctorResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/api.pagination"
+                }
+            }
+        },
+        "api.pagination": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "api.profileResponse": {
             "type": "object",
             "properties": {
@@ -1409,6 +2123,69 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/api.profileResponse"
+                    }
+                }
+            }
+        },
+        "api.rescheduleInput": {
+            "type": "object",
+            "required": [
+                "clinic_id",
+                "start_time"
+            ],
+            "properties": {
+                "clinic_id": {
+                    "type": "string"
+                },
+                "duration_minutes": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.serviceItemResponse": {
+            "type": "object",
+            "properties": {
+                "duration_min": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "api.slotResponse": {
+            "type": "object",
+            "properties": {
+                "appointment_type_id": {
+                    "type": "string"
+                },
+                "doctor_id": {
+                    "type": "string"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "start": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.slotsResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.slotResponse"
                     }
                 }
             }
@@ -1503,20 +2280,16 @@ const docTemplate = `{
                 }
             }
         },
-        "api.userResponse": {
+        "api.updateUserInput": {
             "type": "object",
+            "required": [
+                "full_name",
+                "phone"
+            ],
             "properties": {
-                "created_at": {
-                    "type": "string"
-                },
                 "full_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "is_active": {
-                    "type": "boolean"
+                    "type": "string",
+                    "maxLength": 255
                 },
                 "phone": {
                     "type": "string"
@@ -1531,7 +2304,62 @@ const docTemplate = `{
                 }
             }
         },
-        "service.BookInput": {
+        "github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse": {
+            "type": "object",
+            "properties": {
+                "cancellation_reason": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "doctor_id": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "patient_id": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_appointment_api.appointmentsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_appointment_service.BookInput": {
             "type": "object",
             "required": [
                 "doctor_id",
@@ -1555,6 +2383,103 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_appointment_service.RescheduleInput": {
+            "type": "object",
+            "required": [
+                "duration_minutes",
+                "start_time"
+            ],
+            "properties": {
+                "duration_minutes": {
+                    "type": "integer",
+                    "maximum": 480,
+                    "minimum": 5
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_auth_api.userResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse": {
+            "type": "object",
+            "properties": {
+                "appointment_type_id": {
+                    "type": "string"
+                },
+                "clinic_id": {
+                    "type": "string"
+                },
+                "clinic_name": {
+                    "type": "string"
+                },
+                "doctor_id": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "patient_id": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_patient_api.appointmentsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse"
+                    }
+                }
+            }
+        },
+        "github_com_PandaX185_clinic-management_internal_patient_api.userResponse": {
+            "type": "object",
+            "properties": {
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "phone": {
                     "type": "string"
                 }
             }
@@ -1608,37 +2533,19 @@ const docTemplate = `{
                 }
             }
         },
-        "service.RescheduleInput": {
-            "type": "object",
-            "required": [
-                "duration_minutes",
-                "start_time"
-            ],
-            "properties": {
-                "duration_minutes": {
-                    "type": "integer",
-                    "maximum": 480,
-                    "minimum": 5
-                },
-                "start_time": {
-                    "type": "string"
-                }
-            }
-        },
         "service.TokenPair": {
             "type": "object",
             "properties": {
-                "accessToken": {
+                "access_token": {
                     "type": "string"
                 },
-                "expiresIn": {
-                    "type": "integer",
-                    "format": "int64"
+                "expires_in": {
+                    "type": "integer"
                 },
-                "refreshToken": {
+                "refresh_token": {
                     "type": "string"
                 },
-                "tokenType": {
+                "token_type": {
                     "type": "string"
                 }
             }

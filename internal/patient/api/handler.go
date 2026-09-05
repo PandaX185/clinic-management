@@ -157,6 +157,7 @@ func (h *Handler) GetAppointment(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param input body bookInput true "Booking details"
+// @Param Idempotency-Key header string false "Client-generated idempotency key to make the booking repeatable"
 // @Success 201 {object} appointmentResponse
 // @Failure 400 {object} apperr.ErrorResponse
 // @Failure 403 {object} apperr.ErrorResponse
@@ -193,6 +194,7 @@ func (h *Handler) Book(c *gin.Context) {
 		StartTime:       in.StartTime,
 		DurationMinutes: in.DurationMinutes,
 		Notes:           in.Notes,
+		IdempotencyKey:  c.GetHeader("Idempotency-Key"),
 	})
 	if err != nil {
 		c.Error(err)

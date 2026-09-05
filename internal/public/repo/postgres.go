@@ -139,14 +139,22 @@ func (r *PostgresRepository) ListClinicDoctors(ctx context.Context, clinicID uui
 }
 
 // FindDoctor scans active clinics for a profile holding the doctor role and
-// returns it with the clinic it practises at.
+// returns it with the clinic it practises at. Tenants without a provisioned
+// schema are skipped so a single missing schema does not fail the lookup.
 func (r *PostgresRepository) FindDoctor(ctx context.Context, doctorID uuid.UUID) (*publicsvc.Doctor, error) {
 	tenants, err := db.New(r.pool).ListTenants(ctx)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
+	existing, err := database.ExistingTenantSchemas(ctx, r.pool)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
 
 	for _, tenant := range tenants {
+		if _, ok := existing[database.SchemaName(tenant.Slug)]; !ok {
+			continue
+		}
 		var found *publicsvc.Doctor
 		err := r.scoped.WithSchema(ctx, tenant.Slug, func(tx pgx.Tx) error {
 			q := db.New(tx)
@@ -161,7 +169,7 @@ func (r *PostgresRepository) FindDoctor(ctx context.Context, doctorID uuid.UUID)
 			if err != nil {
 				return err
 			}
-			if !isDoctor {
+			if !isDoctor || prof.Status != "active" {
 				return nil
 			}
 			found = &publicsvc.Doctor{
@@ -192,7 +200,7 @@ func (r *PostgresRepository) ListDoctorSchedules(ctx context.Context, clinicID u
 	err = r.scoped.WithSchema(ctx, slug, func(tx pgx.Tx) error {
 		rows, err := db.New(tx).ListDoctorSchedulesOnDay(ctx, db.ListDoctorSchedulesOnDayParams{
 			DoctorProfileID: doctorID,
-			Extract:         date,
+			Date:            date,
 		})
 		if err != nil {
 			return apperr.Internal(err)
@@ -220,8 +228,8 @@ func (r *PostgresRepository) ListDoctorAppointments(ctx context.Context, clinicI
 	err = r.scoped.WithSchema(ctx, slug, func(tx pgx.Tx) error {
 		rows, err := db.New(tx).ListAppointmentsForDoctorDate(ctx, db.ListAppointmentsForDoctorDateParams{
 			DoctorProfileID: doctorID,
-			ScheduledStart:  from,
-			ScheduledEnd:    to,
+			From:            from,
+			To:              to,
 		})
 		if err != nil {
 			return apperr.Internal(err)

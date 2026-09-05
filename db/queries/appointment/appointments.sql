@@ -94,7 +94,7 @@ SELECT id, profile_id, doctor_profile_id, appointment_type_id,
     version, created_by, created_at, updated_at
 FROM appointments
 WHERE doctor_profile_id = $1
-  AND scheduled_start < $3
-  AND scheduled_end > $2
+  AND scheduled_end > sqlc.arg('from')
+  AND scheduled_start < sqlc.arg('to')
   AND status IN ('scheduled', 'confirmed')
 ORDER BY scheduled_start;

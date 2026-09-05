@@ -60,6 +60,7 @@ type BookInput struct {
 	StartTime       time.Time
 	DurationMinutes int
 	Notes           *string
+	IdempotencyKey  string
 }
 
 // RescheduleInput describes the new timing for an appointment.
@@ -142,6 +143,7 @@ func (s *Service) Book(ctx context.Context, userID uuid.UUID, in BookInput) (*Ap
 		StartTime:       in.StartTime,
 		DurationMinutes: in.DurationMinutes,
 		Notes:           in.Notes,
+		IdempotencyKey:  in.IdempotencyKey,
 	}, patientAccess(userID))
 	if err != nil {
 		return nil, err

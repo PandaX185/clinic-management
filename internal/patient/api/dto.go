@@ -18,7 +18,7 @@ type userResponse struct {
 
 type updateUserInput struct {
 	FullName string `json:"full_name" binding:"required,max=255"`
-	Phone    string `json:"phone" binding:"required,min=8"`
+	Phone    string `json:"phone" binding:"required,e164"`
 }
 
 type appointmentResponse struct {

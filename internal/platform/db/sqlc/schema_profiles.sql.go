@@ -35,6 +35,7 @@ SELECT COUNT(*)
 FROM profiles p
 JOIN profile_roles pr ON pr.profile_id = p.id
 JOIN roles r ON r.id = pr.role_id AND r.name = $1
+WHERE p.status = 'active'
 `
 
 func (q *Queries) CountProfilesByRole(ctx context.Context, name string) (int64, error) {
@@ -275,30 +276,42 @@ func (q *Queries) ListAppointmentTypes(ctx context.Context) ([]AppointmentType, 
 }
 
 const listDoctorSchedulesOnDay = `-- name: ListDoctorSchedulesOnDay :many
-SELECT id, doctor_profile_id, day_of_week, start_time, end_time,
-    is_active, created_at, updated_at
-FROM doctor_schedules
-WHERE doctor_profile_id = $1
-  AND is_active = true
-  AND day_of_week = EXTRACT(DOW FROM $2)::int
-ORDER BY start_time
+SELECT s.id, s.doctor_profile_id, s.day_of_week, s.start_time, s.end_time,
+    s.is_active, s.created_at, s.updated_at
+FROM doctor_schedules s
+WHERE s.doctor_profile_id = $1
+  AND s.is_active = true
+  AND s.day_of_week = EXTRACT(DOW FROM $2::timestamptz)::int
+  AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = s.doctor_profile_id AND p.status = 'active')
+ORDER BY s.start_time
 `
 
 type ListDoctorSchedulesOnDayParams struct {
 	DoctorProfileID uuid.UUID
-	Extract         time.Time
+	Date            time.Time
 }
 
-// Active schedule windows for a doctor on a given week day (0 = Sunday).
-func (q *Queries) ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]DoctorSchedule, error) {
-	rows, err := q.db.Query(ctx, listDoctorSchedulesOnDay, arg.DoctorProfileID, arg.Extract)
+type ListDoctorSchedulesOnDayRow struct {
+	ID              uuid.UUID
+	DoctorProfileID uuid.UUID
+	DayOfWeek       int16
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// Active schedule windows for an active doctor on a given week day (0 = Sunday).
+func (q *Queries) ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]ListDoctorSchedulesOnDayRow, error) {
+	rows, err := q.db.Query(ctx, listDoctorSchedulesOnDay, arg.DoctorProfileID, arg.Date)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []DoctorSchedule{}
+	items := []ListDoctorSchedulesOnDayRow{}
 	for rows.Next() {
-		var i DoctorSchedule
+		var i ListDoctorSchedulesOnDayRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DoctorProfileID,
@@ -425,6 +438,7 @@ SELECT
 FROM profiles p
 JOIN profile_roles pr ON pr.profile_id = p.id
 JOIN roles r ON r.id = pr.role_id AND r.name = $1
+WHERE p.status = 'active'
 ORDER BY p.display_name
 LIMIT $2 OFFSET $3
 `

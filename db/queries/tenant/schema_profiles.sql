@@ -64,7 +64,8 @@ ORDER BY p.display_name;
 SELECT COUNT(*)
 FROM profiles p
 JOIN profile_roles pr ON pr.profile_id = p.id
-JOIN roles r ON r.id = pr.role_id AND r.name = $1;
+JOIN roles r ON r.id = pr.role_id AND r.name = $1
+WHERE p.status = 'active';
 
 -- name: ListProfilesByRolePaginated :many
 SELECT
@@ -77,6 +78,7 @@ SELECT
 FROM profiles p
 JOIN profile_roles pr ON pr.profile_id = p.id
 JOIN roles r ON r.id = pr.role_id AND r.name = $1
+WHERE p.status = 'active'
 ORDER BY p.display_name
 LIMIT $2 OFFSET $3;
 
@@ -152,27 +154,30 @@ SELECT * FROM appointment_types WHERE id = $1;
 
 CREATE TABLE doctor_schedules (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    doctor_profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    day_of_week       INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-    start_time        TIME NOT NULL,
-    end_time          TIME NOT NULL,
-    is_active         BOOLEAN NOT NULL DEFAULT true,
+    doctor_profile_id UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    day_of_week       SMALLINT    NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    start_time        TIME        NOT NULL,
+    end_time          TIME        NOT NULL CHECK (end_time > start_time),
+    slot_duration     INT         NOT NULL DEFAULT 30 CHECK (slot_duration > 0),
+    is_active         BOOLEAN     NOT NULL DEFAULT true,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (doctor_profile_id, day_of_week, start_time, end_time)
 );
 
 CREATE INDEX idx_doctor_schedules_doctor ON doctor_schedules(doctor_profile_id);
 CREATE INDEX idx_doctor_schedules_day ON doctor_schedules(day_of_week);
 
 -- name: ListDoctorSchedulesOnDay :many
--- Active schedule windows for a doctor on a given week day (0 = Sunday).
-SELECT id, doctor_profile_id, day_of_week, start_time, end_time,
-    is_active, created_at, updated_at
-FROM doctor_schedules
-WHERE doctor_profile_id = $1
-  AND is_active = true
-  AND day_of_week = EXTRACT(DOW FROM $2)::int
-ORDER BY start_time;
+-- Active schedule windows for an active doctor on a given week day (0 = Sunday).
+SELECT s.id, s.doctor_profile_id, s.day_of_week, s.start_time, s.end_time,
+    s.is_active, s.created_at, s.updated_at
+FROM doctor_schedules s
+WHERE s.doctor_profile_id = $1
+  AND s.is_active = true
+  AND s.day_of_week = EXTRACT(DOW FROM sqlc.arg('date')::timestamptz)::int
+  AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = s.doctor_profile_id AND p.status = 'active')
+ORDER BY s.start_time;
 
 -- name: CreateAppointmentType :one
 INSERT INTO appointment_types (name, duration_minutes, price, color, icon)

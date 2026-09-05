@@ -1,5 +1,8 @@
 .PHONY: help build run test test-race test-coverage lint vet fmt sqlc swagger migrate-up migrate-down docker-build docker-up docker-down tidy
 
+space := $(eval) $(eval)
+comma := ,
+
 help:
 	@echo "Targets:"
 	@echo "  build          - compile the api binary into bin/"
@@ -46,8 +49,13 @@ fmt:
 sqlc:
 	sqlc generate
 
+# The repo root is not a Go package, which swag chokes on when using -d . as a
+# search dir (every parsed file gets dropped). Search each real API package and
+# keep cmd/api first since -g main.go is resolved relative to the first dir.
+SWAGGER_DIRS := cmd/api $(shell find internal -type d -name api -not -path '*/docs/*' -not -path '*/vendor/*' | sort)
+
 swagger:
-	swag init -g cmd/api/main.go -d . -o docs --parseInternal=true
+	swag init -g main.go -d "$(subst $(space),$(comma),$(SWAGGER_DIRS))" -o docs --parseInternal=true --parseDependency=true
 
 migrate-up:
 	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" up

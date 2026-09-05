@@ -52,8 +52,8 @@ type Querier interface {
 	// Appointments overlapping the [from, to) window for a doctor; used to
 	// compute busy intervals when building available slots.
 	ListAppointmentsForDoctorDate(ctx context.Context, arg ListAppointmentsForDoctorDateParams) ([]Appointment, error)
-	// Active schedule windows for a doctor on a given week day (0 = Sunday).
-	ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]DoctorSchedule, error)
+	// Active schedule windows for an active doctor on a given week day (0 = Sunday).
+	ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]ListDoctorSchedulesOnDayRow, error)
 	ListProfiles(ctx context.Context) ([]ListProfilesRow, error)
 	ListProfilesByRole(ctx context.Context, name string) ([]Profile, error)
 	ListProfilesByRolePaginated(ctx context.Context, arg ListProfilesByRolePaginatedParams) ([]Profile, error)

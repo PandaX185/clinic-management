@@ -130,6 +130,34 @@ func (q *Queries) InsertRefreshToken(ctx context.Context, arg InsertRefreshToken
 	return err
 }
 
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET full_name = $2, phone = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, phone, password_hash, full_name, status, created_at, updated_at, is_admin
+`
+
+type UpdateUserProfileParams struct {
+	ID       uuid.UUID
+	FullName string
+	Phone    string
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile, arg.ID, arg.FullName, arg.Phone)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsAdmin,
+	)
+	return i, err
+}
+
 const updateUserStatus = `-- name: UpdateUserStatus :exec
 UPDATE users SET status = $2 WHERE id = $1
 `

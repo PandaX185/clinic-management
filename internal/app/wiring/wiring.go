@@ -17,6 +17,12 @@ import (
 	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
 	directoryrepo "github.com/PandaX185/clinic-management/internal/directory/repo"
 	directorysvc "github.com/PandaX185/clinic-management/internal/directory/service"
+	patientapi "github.com/PandaX185/clinic-management/internal/patient/api"
+	patientrepo "github.com/PandaX185/clinic-management/internal/patient/repo"
+	patientsvc "github.com/PandaX185/clinic-management/internal/patient/service"
+	publicapi "github.com/PandaX185/clinic-management/internal/public/api"
+	publicrepo "github.com/PandaX185/clinic-management/internal/public/repo"
+	publicsvc "github.com/PandaX185/clinic-management/internal/public/service"
 	server "github.com/PandaX185/clinic-management/internal/server"
 	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
 	tenantrepo "github.com/PandaX185/clinic-management/internal/tenant/repo"
@@ -78,6 +84,17 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	dirSvc := directorysvc.NewService(dirRepo)
 	dirH := directoryapi.NewHandler(dirSvc)
 
+	// Public clinic discovery (unauthenticated) and the patient portal
+	// (JWT-only, no X-Tenant-ID). The patient service reuses the appointment
+	// service, pinning the tenant schema from the clinic the patient picks.
+	publicRepo := publicrepo.NewPostgresRepository(d.Pool)
+	publicSvc := publicsvc.NewService(publicRepo)
+	publicH := publicapi.NewHandler(publicSvc)
+
+	patientRepo := patientrepo.NewPostgresRepository(d.Pool)
+	patientSvc := patientsvc.NewService(patientRepo, aptSvc)
+	patientH := patientapi.NewHandler(patientSvc)
+
 	r := server.NewRouter(server.RouterDeps{
 		Cfg:             d.Cfg,
 		RDB:             d.RDB,
@@ -89,6 +106,8 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 		TenantSvc:       tenantSvc,
 		ProfileResolver: profileStore,
 		DirectoryH:      dirH,
+		PublicH:         publicH,
+		PatientH:        patientH,
 		Metrics:         m,
 	})
 

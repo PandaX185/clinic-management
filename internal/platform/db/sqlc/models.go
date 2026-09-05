@@ -41,6 +41,17 @@ type AppointmentType struct {
 	UpdatedAt       time.Time
 }
 
+type DoctorSchedule struct {
+	ID              uuid.UUID
+	DoctorProfileID uuid.UUID
+	DayOfWeek       int32
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type IdempotencyKey struct {
 	Key            string
 	Endpoint       string
@@ -98,12 +109,18 @@ type RolePermission struct {
 }
 
 type Tenant struct {
-	ID        uuid.UUID
-	Name      string
-	Slug      string
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Name        string
+	Slug        string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Address     *string
+	City        *string
+	Phone       *string
+	Email       *string
+	Description pgtype.Text
+	Hours       json.RawMessage
 }
 
 type TenantConfig struct {

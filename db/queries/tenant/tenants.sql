@@ -14,6 +14,12 @@ SELECT * FROM tenants WHERE id = $1;
 -- name: ListTenants :many
 SELECT * FROM tenants WHERE status = 'active' ORDER BY created_at DESC;
 
+-- name: CountActiveTenants :one
+SELECT COUNT(*) FROM tenants WHERE status = 'active';
+
+-- name: ListTenantsPaginated :many
+SELECT * FROM tenants WHERE status = 'active' ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+
 -- name: SetTenantActive :exec
 UPDATE tenants SET status = CASE WHEN $2 THEN 'active' ELSE 'inactive' END WHERE id = $1;
 

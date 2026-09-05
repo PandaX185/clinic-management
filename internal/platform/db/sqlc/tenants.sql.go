@@ -11,11 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const countActiveTenants = `-- name: CountActiveTenants :one
+SELECT COUNT(*) FROM tenants WHERE status = 'active'
+`
+
+func (q *Queries) CountActiveTenants(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveTenants)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTenant = `-- name: CreateTenant :one
 
 INSERT INTO tenants (name, slug)
 VALUES ($1, $2)
-RETURNING id, name, slug, status, created_at, updated_at
+RETURNING id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours
 `
 
 type CreateTenantParams struct {
@@ -34,6 +45,12 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Address,
+		&i.City,
+		&i.Phone,
+		&i.Email,
+		&i.Description,
+		&i.Hours,
 	)
 	return i, err
 }
@@ -55,7 +72,7 @@ func (q *Queries) EnsureUserTenantMembership(ctx context.Context, arg EnsureUser
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
-SELECT id, name, slug, status, created_at, updated_at FROM tenants WHERE id = $1
+SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE id = $1
 `
 
 func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -68,12 +85,18 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Address,
+		&i.City,
+		&i.Phone,
+		&i.Email,
+		&i.Description,
+		&i.Hours,
 	)
 	return i, err
 }
 
 const getTenantBySlug = `-- name: GetTenantBySlug :one
-SELECT id, name, slug, status, created_at, updated_at FROM tenants WHERE slug = $1
+SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE slug = $1
 `
 
 func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, error) {
@@ -86,12 +109,18 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Address,
+		&i.City,
+		&i.Phone,
+		&i.Email,
+		&i.Description,
+		&i.Hours,
 	)
 	return i, err
 }
 
 const listTenants = `-- name: ListTenants :many
-SELECT id, name, slug, status, created_at, updated_at FROM tenants WHERE status = 'active' ORDER BY created_at DESC
+SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE status = 'active' ORDER BY created_at DESC
 `
 
 func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
@@ -110,6 +139,54 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Address,
+			&i.City,
+			&i.Phone,
+			&i.Email,
+			&i.Description,
+			&i.Hours,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantsPaginated = `-- name: ListTenantsPaginated :many
+SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE status = 'active' ORDER BY created_at DESC LIMIT $1 OFFSET $2
+`
+
+type ListTenantsPaginatedParams struct {
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) ListTenantsPaginated(ctx context.Context, arg ListTenantsPaginatedParams) ([]Tenant, error) {
+	rows, err := q.db.Query(ctx, listTenantsPaginated, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Tenant{}
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Address,
+			&i.City,
+			&i.Phone,
+			&i.Email,
+			&i.Description,
+			&i.Hours,
 		); err != nil {
 			return nil, err
 		}

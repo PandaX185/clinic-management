@@ -60,6 +60,34 @@ JOIN profile_roles pr ON pr.profile_id = p.id
 JOIN roles r ON r.id = pr.role_id AND r.name = $1
 ORDER BY p.display_name;
 
+-- name: CountProfilesByRole :one
+SELECT COUNT(*)
+FROM profiles p
+JOIN profile_roles pr ON pr.profile_id = p.id
+JOIN roles r ON r.id = pr.role_id AND r.name = $1;
+
+-- name: ListProfilesByRolePaginated :many
+SELECT
+    p.id,
+    p.user_id,
+    p.display_name,
+    p.status,
+    p.created_at,
+    p.updated_at
+FROM profiles p
+JOIN profile_roles pr ON pr.profile_id = p.id
+JOIN roles r ON r.id = pr.role_id AND r.name = $1
+ORDER BY p.display_name
+LIMIT $2 OFFSET $3;
+
+-- name: ProfileHasRole :one
+SELECT EXISTS (
+    SELECT 1
+    FROM profile_roles pr
+    JOIN roles r ON r.id = pr.role_id
+    WHERE pr.profile_id = $1 AND r.name = $2
+);
+
 -- RBAC (tenant-specific) ---------------------------------------------
 
 CREATE TABLE roles (
@@ -119,6 +147,32 @@ SELECT * FROM appointment_types WHERE is_active = true ORDER BY name;
 
 -- name: GetAppointmentTypeByID :one
 SELECT * FROM appointment_types WHERE id = $1;
+
+-- Doctor schedules ----------------------------------------------------
+
+CREATE TABLE doctor_schedules (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    doctor_profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    day_of_week       INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    start_time        TIME NOT NULL,
+    end_time          TIME NOT NULL,
+    is_active         BOOLEAN NOT NULL DEFAULT true,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_doctor_schedules_doctor ON doctor_schedules(doctor_profile_id);
+CREATE INDEX idx_doctor_schedules_day ON doctor_schedules(day_of_week);
+
+-- name: ListDoctorSchedulesOnDay :many
+-- Active schedule windows for a doctor on a given week day (0 = Sunday).
+SELECT id, doctor_profile_id, day_of_week, start_time, end_time,
+    is_active, created_at, updated_at
+FROM doctor_schedules
+WHERE doctor_profile_id = $1
+  AND is_active = true
+  AND day_of_week = EXTRACT(DOW FROM $2)::int
+ORDER BY start_time;
 
 -- name: CreateAppointmentType :one
 INSERT INTO appointment_types (name, duration_minutes, price, color, icon)

@@ -128,6 +128,45 @@ func (q *Queries) GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appoint
 	return i, err
 }
 
+const getAppointmentByIDAndUser = `-- name: GetAppointmentByIDAndUser :one
+SELECT a.id, a.profile_id, a.doctor_profile_id, a.appointment_type_id,
+    a.scheduled_start, a.scheduled_end, a.status,
+    a.visit_notes, a.follow_up_date, a.cancellation_reason,
+    a.version, a.created_by, a.created_at, a.updated_at
+FROM appointments a
+JOIN profiles p ON p.id = a.profile_id
+WHERE a.id = $1 AND p.user_id = $2
+`
+
+type GetAppointmentByIDAndUserParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// Ownership-scoped read: the requested appointment is only returned when it
+// belongs to the given user (through their patient profile).
+func (q *Queries) GetAppointmentByIDAndUser(ctx context.Context, arg GetAppointmentByIDAndUserParams) (Appointment, error) {
+	row := q.db.QueryRow(ctx, getAppointmentByIDAndUser, arg.ID, arg.UserID)
+	var i Appointment
+	err := row.Scan(
+		&i.ID,
+		&i.ProfileID,
+		&i.DoctorProfileID,
+		&i.AppointmentTypeID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Status,
+		&i.VisitNotes,
+		&i.FollowUpDate,
+		&i.CancellationReason,
+		&i.Version,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listAppointments = `-- name: ListAppointments :many
 SELECT id, profile_id, doctor_profile_id, appointment_type_id,
     scheduled_start, scheduled_end, status,
@@ -155,6 +194,110 @@ func (q *Queries) ListAppointments(ctx context.Context, arg ListAppointmentsPara
 		arg.Limit,
 		arg.Offset,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Appointment{}
+	for rows.Next() {
+		var i Appointment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.DoctorProfileID,
+			&i.AppointmentTypeID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Status,
+			&i.VisitNotes,
+			&i.FollowUpDate,
+			&i.CancellationReason,
+			&i.Version,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAppointmentsByUser = `-- name: ListAppointmentsByUser :many
+SELECT a.id, a.profile_id, a.doctor_profile_id, a.appointment_type_id,
+    a.scheduled_start, a.scheduled_end, a.status,
+    a.visit_notes, a.follow_up_date, a.cancellation_reason,
+    a.version, a.created_by, a.created_at, a.updated_at
+FROM appointments a
+JOIN profiles p ON p.id = a.profile_id
+WHERE p.user_id = $1
+ORDER BY a.scheduled_start DESC
+`
+
+// Appointments of a single patient across a clinic: joins through the
+// patient's profile so the query is automatically scoped to one user.
+func (q *Queries) ListAppointmentsByUser(ctx context.Context, userID uuid.UUID) ([]Appointment, error) {
+	rows, err := q.db.Query(ctx, listAppointmentsByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Appointment{}
+	for rows.Next() {
+		var i Appointment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.DoctorProfileID,
+			&i.AppointmentTypeID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Status,
+			&i.VisitNotes,
+			&i.FollowUpDate,
+			&i.CancellationReason,
+			&i.Version,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAppointmentsForDoctorDate = `-- name: ListAppointmentsForDoctorDate :many
+SELECT id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
+FROM appointments
+WHERE doctor_profile_id = $1
+  AND scheduled_start < $3
+  AND scheduled_end > $2
+  AND status IN ('scheduled', 'confirmed')
+ORDER BY scheduled_start
+`
+
+type ListAppointmentsForDoctorDateParams struct {
+	DoctorProfileID uuid.UUID
+	ScheduledEnd    time.Time
+	ScheduledStart  time.Time
+}
+
+// Appointments overlapping the [from, to) window for a doctor; used to
+// compute busy intervals when building available slots.
+func (q *Queries) ListAppointmentsForDoctorDate(ctx context.Context, arg ListAppointmentsForDoctorDateParams) ([]Appointment, error) {
+	rows, err := q.db.Query(ctx, listAppointmentsForDoctorDate, arg.DoctorProfileID, arg.ScheduledEnd, arg.ScheduledStart)
 	if err != nil {
 		return nil, err
 	}

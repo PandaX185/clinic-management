@@ -30,6 +30,20 @@ func (q *Queries) AssignRoleToProfile(ctx context.Context, arg AssignRoleToProfi
 	return err
 }
 
+const countProfilesByRole = `-- name: CountProfilesByRole :one
+SELECT COUNT(*)
+FROM profiles p
+JOIN profile_roles pr ON pr.profile_id = p.id
+JOIN roles r ON r.id = pr.role_id AND r.name = $1
+`
+
+func (q *Queries) CountProfilesByRole(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRow(ctx, countProfilesByRole, name)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAppointmentType = `-- name: CreateAppointmentType :one
 INSERT INTO appointment_types (name, duration_minutes, price, color, icon)
 VALUES ($1, $2, $3, $4, $5)
@@ -260,6 +274,51 @@ func (q *Queries) ListAppointmentTypes(ctx context.Context) ([]AppointmentType, 
 	return items, nil
 }
 
+const listDoctorSchedulesOnDay = `-- name: ListDoctorSchedulesOnDay :many
+SELECT id, doctor_profile_id, day_of_week, start_time, end_time,
+    is_active, created_at, updated_at
+FROM doctor_schedules
+WHERE doctor_profile_id = $1
+  AND is_active = true
+  AND day_of_week = EXTRACT(DOW FROM $2)::int
+ORDER BY start_time
+`
+
+type ListDoctorSchedulesOnDayParams struct {
+	DoctorProfileID uuid.UUID
+	Extract         time.Time
+}
+
+// Active schedule windows for a doctor on a given week day (0 = Sunday).
+func (q *Queries) ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]DoctorSchedule, error) {
+	rows, err := q.db.Query(ctx, listDoctorSchedulesOnDay, arg.DoctorProfileID, arg.Extract)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DoctorSchedule{}
+	for rows.Next() {
+		var i DoctorSchedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.DoctorProfileID,
+			&i.DayOfWeek,
+			&i.StartTime,
+			&i.EndTime,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProfiles = `-- name: ListProfiles :many
 SELECT
     p.id,
@@ -355,6 +414,54 @@ func (q *Queries) ListProfilesByRole(ctx context.Context, name string) ([]Profil
 	return items, nil
 }
 
+const listProfilesByRolePaginated = `-- name: ListProfilesByRolePaginated :many
+SELECT
+    p.id,
+    p.user_id,
+    p.display_name,
+    p.status,
+    p.created_at,
+    p.updated_at
+FROM profiles p
+JOIN profile_roles pr ON pr.profile_id = p.id
+JOIN roles r ON r.id = pr.role_id AND r.name = $1
+ORDER BY p.display_name
+LIMIT $2 OFFSET $3
+`
+
+type ListProfilesByRolePaginatedParams struct {
+	Name   string
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) ListProfilesByRolePaginated(ctx context.Context, arg ListProfilesByRolePaginatedParams) ([]Profile, error) {
+	rows, err := q.db.Query(ctx, listProfilesByRolePaginated, arg.Name, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Profile{}
+	for rows.Next() {
+		var i Profile
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DisplayName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserRoles = `-- name: ListUserRoles :many
 SELECT r.id, r.name
 FROM roles r
@@ -385,6 +492,27 @@ func (q *Queries) ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const profileHasRole = `-- name: ProfileHasRole :one
+SELECT EXISTS (
+    SELECT 1
+    FROM profile_roles pr
+    JOIN roles r ON r.id = pr.role_id
+    WHERE pr.profile_id = $1 AND r.name = $2
+)
+`
+
+type ProfileHasRoleParams struct {
+	ProfileID uuid.UUID
+	Name      string
+}
+
+func (q *Queries) ProfileHasRole(ctx context.Context, arg ProfileHasRoleParams) (bool, error) {
+	row := q.db.QueryRow(ctx, profileHasRole, arg.ProfileID, arg.Name)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const updateAppointmentType = `-- name: UpdateAppointmentType :one

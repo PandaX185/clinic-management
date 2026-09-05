@@ -13,7 +13,9 @@ import (
 
 type Querier interface {
 	AssignRoleToProfile(ctx context.Context, arg AssignRoleToProfileParams) error
+	CountActiveTenants(ctx context.Context) (int64, error)
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
+	CountProfilesByRole(ctx context.Context, name string) (int64, error)
 	// Appointments (schema v2: profile-based, typed, queue-ready)
 	CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error)
 	CreateAppointmentType(ctx context.Context, arg CreateAppointmentTypeParams) (AppointmentType, error)
@@ -25,6 +27,9 @@ type Querier interface {
 	DeleteRefreshToken(ctx context.Context, arg DeleteRefreshTokenParams) error
 	EnsureUserTenantMembership(ctx context.Context, arg EnsureUserTenantMembershipParams) error
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
+	// Ownership-scoped read: the requested appointment is only returned when it
+	// belongs to the given user (through their patient profile).
+	GetAppointmentByIDAndUser(ctx context.Context, arg GetAppointmentByIDAndUserParams) (Appointment, error)
 	GetAppointmentTypeByID(ctx context.Context, id uuid.UUID) (AppointmentType, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
 	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
@@ -41,15 +46,27 @@ type Querier interface {
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	ListAppointmentTypes(ctx context.Context) ([]AppointmentType, error)
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)
+	// Appointments of a single patient across a clinic: joins through the
+	// patient's profile so the query is automatically scoped to one user.
+	ListAppointmentsByUser(ctx context.Context, userID uuid.UUID) ([]Appointment, error)
+	// Appointments overlapping the [from, to) window for a doctor; used to
+	// compute busy intervals when building available slots.
+	ListAppointmentsForDoctorDate(ctx context.Context, arg ListAppointmentsForDoctorDateParams) ([]Appointment, error)
+	// Active schedule windows for a doctor on a given week day (0 = Sunday).
+	ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]DoctorSchedule, error)
 	ListProfiles(ctx context.Context) ([]ListProfilesRow, error)
 	ListProfilesByRole(ctx context.Context, name string) ([]Profile, error)
+	ListProfilesByRolePaginated(ctx context.Context, arg ListProfilesByRolePaginatedParams) ([]Profile, error)
 	ListTenants(ctx context.Context) ([]Tenant, error)
+	ListTenantsPaginated(ctx context.Context, arg ListTenantsPaginatedParams) ([]Tenant, error)
 	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]ListUserRolesRow, error)
 	ListUserTenantIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+	ProfileHasRole(ctx context.Context, arg ProfileHasRoleParams) (bool, error)
 	RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error)
 	SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
 	UpdateAppointmentType(ctx context.Context, arg UpdateAppointmentTypeParams) (AppointmentType, error)
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
 	UpsertPatientProfile(ctx context.Context, arg UpsertPatientProfileParams) (Profile, error)
 	ValidateRefreshToken(ctx context.Context, arg ValidateRefreshTokenParams) (time.Time, error)

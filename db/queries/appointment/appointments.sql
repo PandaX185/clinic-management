@@ -61,3 +61,40 @@ RETURNING id, profile_id, doctor_profile_id, appointment_type_id,
     scheduled_start, scheduled_end, status,
     visit_notes, follow_up_date, cancellation_reason,
     version, created_by, created_at, updated_at;
+
+-- name: ListAppointmentsByUser :many
+-- Appointments of a single patient across a clinic: joins through the
+-- patient's profile so the query is automatically scoped to one user.
+SELECT a.id, a.profile_id, a.doctor_profile_id, a.appointment_type_id,
+    a.scheduled_start, a.scheduled_end, a.status,
+    a.visit_notes, a.follow_up_date, a.cancellation_reason,
+    a.version, a.created_by, a.created_at, a.updated_at
+FROM appointments a
+JOIN profiles p ON p.id = a.profile_id
+WHERE p.user_id = $1
+ORDER BY a.scheduled_start DESC;
+
+-- name: GetAppointmentByIDAndUser :one
+-- Ownership-scoped read: the requested appointment is only returned when it
+-- belongs to the given user (through their patient profile).
+SELECT a.id, a.profile_id, a.doctor_profile_id, a.appointment_type_id,
+    a.scheduled_start, a.scheduled_end, a.status,
+    a.visit_notes, a.follow_up_date, a.cancellation_reason,
+    a.version, a.created_by, a.created_at, a.updated_at
+FROM appointments a
+JOIN profiles p ON p.id = a.profile_id
+WHERE a.id = $1 AND p.user_id = $2;
+
+-- name: ListAppointmentsForDoctorDate :many
+-- Appointments overlapping the [from, to) window for a doctor; used to
+-- compute busy intervals when building available slots.
+SELECT id, profile_id, doctor_profile_id, appointment_type_id,
+    scheduled_start, scheduled_end, status,
+    visit_notes, follow_up_date, cancellation_reason,
+    version, created_by, created_at, updated_at
+FROM appointments
+WHERE doctor_profile_id = $1
+  AND scheduled_start < $3
+  AND scheduled_end > $2
+  AND status IN ('scheduled', 'confirmed')
+ORDER BY scheduled_start;

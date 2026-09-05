@@ -17,6 +17,11 @@ RETURNING *;
 -- name: UpdateUserStatus :exec
 UPDATE users SET status = $2 WHERE id = $1;
 
+-- name: UpdateUserProfile :one
+UPDATE users SET full_name = $2, phone = $3, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- Refresh tokens (hashed storage for validation/revocation)
 
 -- name: InsertRefreshToken :exec

@@ -20,8 +20,8 @@ coverage.html
 go.work.sum
 
 .hermes/
-# Local product strategy — not part of the public repo
-docs/STRATEGY.md
 
-# Local working TODOs — not part of the public repo
-TODO.md
+# Local planning docs (roadmaps, specs, TODOs, strategy) live under .docs/
+# and are not part of the public repo. The whole directory is ignored so
+# future planning files dropped in there need no .gitignore edits.
+.docs/

@@ -13,6 +13,8 @@ import (
 	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
 	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
 	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
+	patientapi "github.com/PandaX185/clinic-management/internal/patient/api"
+	publicapi "github.com/PandaX185/clinic-management/internal/public/api"
 	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
 	tenantsvc "github.com/PandaX185/clinic-management/internal/tenant/service"
 
@@ -31,6 +33,8 @@ type RouterDeps struct {
 	TenantSvc       *tenantsvc.Service
 	ProfileResolver ProfileResolver
 	DirectoryH      *directoryapi.Handler
+	PublicH         *publicapi.Handler
+	PatientH        *patientapi.Handler
 	Metrics         *metrics.Metrics
 }
 
@@ -75,6 +79,10 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 	deps.AuthH.RegisterRoutes(apiV1)
 
+	// Public clinic discovery: unauthenticated, no tenant context. This is
+	// the surface patients reach before authenticating.
+	deps.PublicH.RegisterRoutes(apiV1.Group("/public"))
+
 	// Global (auth-only) routes: authenticated identity but no X-Tenant-ID.
 	global := apiV1.Group("")
 	global.Use(authapi.JwtMiddleware(deps.AuthSvc))
@@ -99,6 +107,9 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	deps.TenantH.RegisterRoutes(global) // GET /tenants, /tenants/mine — browse clinics
 	authProtected := global.Group("/auth")
 	deps.AuthH.RegisterProtectedRoutes(authProtected) // GET /auth/me, /auth/tenants
+
+	// Patient portal: JWT-only, operations span clinics so no X-Tenant-ID.
+	deps.PatientH.RegisterRoutes(global)
 
 	deps.DirectoryH.RegisterRoutes(protected) // profiles, doctors, appointment types
 

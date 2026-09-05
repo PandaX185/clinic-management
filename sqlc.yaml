@@ -9,11 +9,11 @@ sql:
   - db/migrations/global/000004_user_tenants.up.sql
   - db/migrations/global/000005_refresh_token_user_unique.up.sql
   - db/migrations/global/000006_clinic_profile.up.sql
-  - db/queries/tenant/schema_profiles.sql
+  - db/queries/clinic/schema_profiles.sql
   queries:
   - db/queries/auth
   - db/queries/appointment
-  - db/queries/tenant
+  - db/queries/clinic
   gen:
     go:
       package: sqlc

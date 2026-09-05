@@ -8,25 +8,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	apptapi "github.com/PandaX185/clinic-management/internal/appointment/api"
-	apptrepo "github.com/PandaX185/clinic-management/internal/appointment/repo"
-	apptsvc "github.com/PandaX185/clinic-management/internal/appointment/service"
-	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
-	authrepo "github.com/PandaX185/clinic-management/internal/auth/repo"
-	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
-	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
-	directoryrepo "github.com/PandaX185/clinic-management/internal/directory/repo"
-	directorysvc "github.com/PandaX185/clinic-management/internal/directory/service"
-	patientapi "github.com/PandaX185/clinic-management/internal/patient/api"
-	patientrepo "github.com/PandaX185/clinic-management/internal/patient/repo"
-	patientsvc "github.com/PandaX185/clinic-management/internal/patient/service"
-	publicapi "github.com/PandaX185/clinic-management/internal/public/api"
-	publicrepo "github.com/PandaX185/clinic-management/internal/public/repo"
-	publicsvc "github.com/PandaX185/clinic-management/internal/public/service"
+	bookingapi "github.com/PandaX185/clinic-management/internal/booking/api"
+	bookingrepo "github.com/PandaX185/clinic-management/internal/booking/repo"
+	bookingsvc "github.com/PandaX185/clinic-management/internal/booking/service"
+	catapi "github.com/PandaX185/clinic-management/internal/catalog/api"
+	catrepo "github.com/PandaX185/clinic-management/internal/catalog/repo"
+	catsvc "github.com/PandaX185/clinic-management/internal/catalog/service"
+	clinicapi "github.com/PandaX185/clinic-management/internal/clinic/api"
+	clinicrepo "github.com/PandaX185/clinic-management/internal/clinic/repo"
+	clinicsvc "github.com/PandaX185/clinic-management/internal/clinic/service"
+	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
+	idrepo "github.com/PandaX185/clinic-management/internal/identity/repo"
+	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
+	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
+	portalrepo "github.com/PandaX185/clinic-management/internal/portal/repo"
+	portalsvc "github.com/PandaX185/clinic-management/internal/portal/service"
+	schedapi "github.com/PandaX185/clinic-management/internal/scheduling/api"
+	schedrepo "github.com/PandaX185/clinic-management/internal/scheduling/repo"
+	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
 	server "github.com/PandaX185/clinic-management/internal/server"
-	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
-	tenantrepo "github.com/PandaX185/clinic-management/internal/tenant/repo"
-	tenantsvc "github.com/PandaX185/clinic-management/internal/tenant/service"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
@@ -58,42 +58,42 @@ type Deps struct {
 func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	m := metrics.New()
 
-	authRepo := authrepo.NewPostgresRepository(d.Pool)
-	tokens := authsvc.NewTokenManager(d.Cfg.JWTSecret, d.Cfg.JWTRefreshSecret, d.Cfg.AccessTokenTTL, d.Cfg.RefreshTokenTTL)
-	authSvc := authsvc.NewService(authRepo, tokens, d.Cfg.BcryptCost)
-	authH := authapi.NewHandler(authSvc)
+	authRepo := idrepo.NewPostgresRepository(d.Pool)
+	tokens := idsvc.NewTokenManager(d.Cfg.JWTSecret, d.Cfg.JWTRefreshSecret, d.Cfg.AccessTokenTTL, d.Cfg.RefreshTokenTTL)
+	authSvc := idsvc.NewService(authRepo, tokens, d.Cfg.BcryptCost)
+	authH := idapi.NewHandler(authSvc)
 
-	tenantStore := tenantrepo.NewPostgresStore(d.Pool)
-	profileStore := tenantrepo.NewScopedProfileStore(d.Pool)
-	tenantSvc := tenantsvc.NewService(tenantStore, profileStore, tenantStore)
-	tenantH := tenantapi.NewHandler(tenantSvc)
+	clinicStore := clinicrepo.NewPostgresStore(d.Pool)
+	profileStore := clinicrepo.NewScopedProfileStore(d.Pool)
+	clinicSvc := clinicsvc.NewService(clinicStore, profileStore, clinicStore)
+	clinicH := clinicapi.NewHandler(clinicSvc)
 
-	// Real "my clinics" resolution for /auth/tenants: global user_tenants
-	// index + per-tenant role lookup. Defined here to keep auth→tenant acyclic.
-	membershipProvider := &tenantMembershipProvider{
+	// Real "my clinics" resolution for /auth/clinics: global user_tenants
+	// index + per-tenant role lookup. Defined here to keep identity→clinic acyclic.
+	membershipProvider := &clinicMembershipProvider{
 		pool:  d.Pool,
-		store: tenantStore,
+		store: clinicStore,
 	}
-	authSvc.WithTenantMemberships(membershipProvider)
+	authSvc.WithClinicMemberships(membershipProvider)
 
-	aptRepo := apptrepo.NewPostgresRepository(d.Pool)
-	aptSvc := apptsvc.NewServiceWithIdentity(aptRepo, nil, apptrepo.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
-	aptH := apptapi.NewHandler(aptSvc)
+	aptRepo := schedrepo.NewPostgresRepository(d.Pool)
+	aptSvc := schedsvc.NewServiceWithIdentity(aptRepo, nil, schedrepo.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
+	aptH := schedapi.NewHandler(aptSvc)
 
-	dirRepo := directoryrepo.NewPostgresRepo(d.Pool)
-	dirSvc := directorysvc.NewService(dirRepo)
-	dirH := directoryapi.NewHandler(dirSvc)
+	dirRepo := catrepo.NewPostgresRepo(d.Pool)
+	dirSvc := catsvc.NewService(dirRepo)
+	dirH := catapi.NewHandler(dirSvc)
 
 	// Public clinic discovery (unauthenticated) and the patient portal
 	// (JWT-only, no X-Tenant-ID). The patient service reuses the appointment
 	// service, pinning the tenant schema from the clinic the patient picks.
-	publicRepo := publicrepo.NewPostgresRepository(d.Pool)
-	publicSvc := publicsvc.NewService(publicRepo)
-	publicH := publicapi.NewHandler(publicSvc)
+	publicRepo := bookingrepo.NewPostgresRepository(d.Pool)
+	publicSvc := bookingsvc.NewService(publicRepo)
+	publicH := bookingapi.NewHandler(publicSvc)
 
-	patientRepo := patientrepo.NewPostgresRepository(d.Pool)
-	patientSvc := patientsvc.NewService(patientRepo, aptSvc)
-	patientH := patientapi.NewHandler(patientSvc)
+	patientRepo := portalrepo.NewPostgresRepository(d.Pool)
+	patientSvc := portalsvc.NewService(patientRepo, aptSvc)
+	patientH := portalapi.NewHandler(patientSvc)
 
 	r := server.NewRouter(server.RouterDeps{
 		Cfg:             d.Cfg,
@@ -102,8 +102,8 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 		AuthH:           authH,
 		AuthSvc:         authSvc,
 		AppointH:        aptH,
-		TenantH:         tenantH,
-		TenantSvc:       tenantSvc,
+		ClinicH:         clinicH,
+		ClinicSvc:       clinicSvc,
 		ProfileResolver: profileStore,
 		DirectoryH:      dirH,
 		PublicH:         publicH,

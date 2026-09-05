@@ -95,14 +95,28 @@ definitions:
       slug:
         type: string
     type: object
-  api.clinicsListResponse:
+  api.clinicResponse:
     properties:
-      items:
-        items:
-          $ref: '#/definitions/api.clinicListItem'
-        type: array
-      pagination:
-        $ref: '#/definitions/api.pagination'
+      id:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  api.createClinicInput:
+    properties:
+      name:
+        maxLength: 255
+        type: string
+      slug:
+        maxLength: 63
+        type: string
+    required:
+    - name
+    - slug
     type: object
   api.createProfileInput:
     properties:
@@ -116,18 +130,6 @@ definitions:
     required:
     - display_name
     - user_id
-    type: object
-  api.createTenantInput:
-    properties:
-      name:
-        maxLength: 255
-        type: string
-      slug:
-        maxLength: 63
-        type: string
-    required:
-    - name
-    - slug
     type: object
   api.doctorResponse:
     properties:
@@ -225,24 +227,6 @@ definitions:
           $ref: '#/definitions/api.slotResponse'
         type: array
     type: object
-  api.tenantResponse:
-    properties:
-      id:
-        type: string
-      is_active:
-        type: boolean
-      name:
-        type: string
-      slug:
-        type: string
-    type: object
-  api.tenantsListResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/api.tenantResponse'
-        type: array
-    type: object
   api.typeInput:
     properties:
       color:
@@ -300,75 +284,23 @@ definitions:
       error:
         type: string
     type: object
-  github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse:
-    properties:
-      cancellation_reason:
-        type: string
-      created_at:
-        type: string
-      doctor_id:
-        type: string
-      end_time:
-        type: string
-      id:
-        type: string
-      notes:
-        type: string
-      patient_id:
-        type: string
-      start_time:
-        type: string
-      status:
-        type: string
-      version:
-        type: integer
-    type: object
-  github_com_PandaX185_clinic-management_internal_appointment_api.appointmentsListResponse:
+  github_com_PandaX185_clinic-management_internal_booking_api.clinicsListResponse:
     properties:
       items:
         items:
-          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+          $ref: '#/definitions/api.clinicListItem'
         type: array
-      limit:
-        type: integer
-      offset:
-        type: integer
-      total:
-        type: integer
+      pagination:
+        $ref: '#/definitions/api.pagination'
     type: object
-  github_com_PandaX185_clinic-management_internal_appointment_service.BookInput:
+  github_com_PandaX185_clinic-management_internal_clinic_api.clinicsListResponse:
     properties:
-      doctor_id:
-        type: string
-      duration_minutes:
-        maximum: 480
-        minimum: 5
-        type: integer
-      notes:
-        type: string
-      patient_id:
-        type: string
-      start_time:
-        type: string
-    required:
-    - doctor_id
-    - duration_minutes
-    - patient_id
-    - start_time
+      items:
+        items:
+          $ref: '#/definitions/api.clinicResponse'
+        type: array
     type: object
-  github_com_PandaX185_clinic-management_internal_appointment_service.RescheduleInput:
-    properties:
-      duration_minutes:
-        maximum: 480
-        minimum: 5
-        type: integer
-      start_time:
-        type: string
-    required:
-    - duration_minutes
-    - start_time
-    type: object
-  github_com_PandaX185_clinic-management_internal_auth_api.userResponse:
+  github_com_PandaX185_clinic-management_internal_identity_api.userResponse:
     properties:
       created_at:
         type: string
@@ -381,7 +313,7 @@ definitions:
       phone:
         type: string
     type: object
-  github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse:
+  github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse:
     properties:
       appointment_type_id:
         type: string
@@ -404,14 +336,14 @@ definitions:
       status:
         type: string
     type: object
-  github_com_PandaX185_clinic-management_internal_patient_api.appointmentsListResponse:
+  github_com_PandaX185_clinic-management_internal_portal_api.appointmentsListResponse:
     properties:
       items:
         items:
-          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse'
         type: array
     type: object
-  github_com_PandaX185_clinic-management_internal_patient_api.userResponse:
+  github_com_PandaX185_clinic-management_internal_portal_api.userResponse:
     properties:
       full_name:
         type: string
@@ -419,6 +351,74 @@ definitions:
         type: string
       phone:
         type: string
+    type: object
+  github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse:
+    properties:
+      cancellation_reason:
+        type: string
+      created_at:
+        type: string
+      doctor_id:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      version:
+        type: integer
+    type: object
+  github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  github_com_PandaX185_clinic-management_internal_scheduling_service.BookInput:
+    properties:
+      doctor_id:
+        type: string
+      duration_minutes:
+        maximum: 480
+        minimum: 5
+        type: integer
+      notes:
+        type: string
+      patient_id:
+        type: string
+      start_time:
+        type: string
+    required:
+    - doctor_id
+    - duration_minutes
+    - patient_id
+    - start_time
+    type: object
+  github_com_PandaX185_clinic-management_internal_scheduling_service.RescheduleInput:
+    properties:
+      duration_minutes:
+        maximum: 480
+        minimum: 5
+        type: integer
+      start_time:
+        type: string
+    required:
+    - duration_minutes
+    - start_time
     type: object
   service.CancelInput:
     properties:
@@ -465,15 +465,15 @@ definitions:
       token_type:
         type: string
     type: object
-  service.UserTenant:
+  service.UserClinic:
     properties:
+      clinic_id:
+        type: string
+      clinic_name:
+        type: string
+      clinic_slug:
+        type: string
       role_name:
-        type: string
-      tenant_id:
-        type: string
-      tenant_name:
-        type: string
-      tenant_slug:
         type: string
     type: object
 host: localhost:8080
@@ -510,7 +510,7 @@ paths:
       - BearerAuth: []
       summary: List appointment types
       tags:
-      - directory
+      - catalog
     post:
       consumes:
       - application/json
@@ -546,7 +546,7 @@ paths:
       - BearerAuth: []
       summary: Create appointment type
       tags:
-      - directory
+      - catalog
   /appointment-types/{id}:
     put:
       consumes:
@@ -593,7 +593,7 @@ paths:
       - BearerAuth: []
       summary: Update appointment type
       tags:
-      - directory
+      - catalog
   /appointments:
     get:
       description: Lists appointments in the active tenant with optional filters and
@@ -648,7 +648,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentsListResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentsListResponse'
         "400":
           description: Bad Request
           schema:
@@ -661,7 +661,7 @@ paths:
       - BearerAuth: []
       summary: List appointments
       tags:
-      - appointments
+      - scheduling
     post:
       consumes:
       - application/json
@@ -684,14 +684,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_service.BookInput'
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_service.BookInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -712,7 +712,7 @@ paths:
       - BearerAuth: []
       summary: Book an appointment
       tags:
-      - appointments
+      - scheduling
   /appointments/{id}:
     get:
       description: Returns a single appointment by id within the active tenant.
@@ -733,7 +733,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -750,7 +750,7 @@ paths:
       - BearerAuth: []
       summary: Get appointment
       tags:
-      - appointments
+      - scheduling
   /appointments/{id}/cancel:
     post:
       consumes:
@@ -779,7 +779,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -796,7 +796,7 @@ paths:
       - BearerAuth: []
       summary: Cancel appointment
       tags:
-      - appointments
+      - scheduling
   /appointments/{id}/complete:
     post:
       description: Marks an appointment as completed. Requires the admin or staff
@@ -818,7 +818,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -831,7 +831,7 @@ paths:
       - BearerAuth: []
       summary: Complete appointment
       tags:
-      - appointments
+      - scheduling
   /appointments/{id}/confirm:
     post:
       description: Marks an appointment as confirmed. Requires the admin or staff
@@ -853,7 +853,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -866,7 +866,7 @@ paths:
       - BearerAuth: []
       summary: Confirm appointment
       tags:
-      - appointments
+      - scheduling
   /appointments/{id}/no-show:
     post:
       description: Marks an appointment as a no-show. Requires the admin or staff
@@ -888,7 +888,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "403":
           description: Forbidden
           schema:
@@ -901,7 +901,7 @@ paths:
       - BearerAuth: []
       summary: Mark appointment as no-show
       tags:
-      - appointments
+      - scheduling
   /appointments/{id}/reschedule:
     post:
       consumes:
@@ -924,14 +924,14 @@ paths:
         name: input
         required: true
         schema:
-          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_service.RescheduleInput'
+          $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_service.RescheduleInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_appointment_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_scheduling_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -948,7 +948,27 @@ paths:
       - BearerAuth: []
       summary: Reschedule appointment
       tags:
-      - appointments
+      - scheduling
+  /auth/clinics:
+    get:
+      consumes:
+      - application/json
+      description: Returns all clinics associated with the current user, with their
+        role in each.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.UserClinic'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List user's clinics
+      tags:
+      - identity
   /auth/login:
     post:
       consumes:
@@ -971,7 +991,7 @@ paths:
             $ref: '#/definitions/service.TokenPair'
       summary: Login with phone and password
       tags:
-      - auth
+      - identity
   /auth/logout:
     post:
       consumes:
@@ -992,7 +1012,7 @@ paths:
           description: No Content
       summary: Logout
       tags:
-      - auth
+      - identity
   /auth/me:
     get:
       consumes:
@@ -1004,12 +1024,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_auth_api.userResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_identity_api.userResponse'
       security:
       - BearerAuth: []
       summary: Get current user
       tags:
-      - auth
+      - identity
   /auth/refresh:
     post:
       consumes:
@@ -1031,7 +1051,7 @@ paths:
             $ref: '#/definitions/service.TokenPair'
       summary: Refresh access token
       tags:
-      - auth
+      - identity
   /auth/register:
     post:
       consumes:
@@ -1051,30 +1071,288 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_auth_api.userResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_identity_api.userResponse'
       summary: Register a new patient account
       tags:
-      - auth
-  /auth/tenants:
+      - identity
+  /booking/clinics:
     get:
-      consumes:
-      - application/json
-      description: Returns all tenants associated with the current user, with their
-        role in each.
+      description: Returns active clinics for public discovery, paginated.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: size
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/service.UserTenant'
-            type: array
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_booking_api.clinicsListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: List clinics
+      tags:
+      - booking
+  /booking/clinics/{id}:
+    get:
+      description: Returns a clinic's public profile with its services and doctors.
+      parameters:
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.clinicDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: Get clinic
+      tags:
+      - booking
+  /booking/clinics/{id}/doctors:
+    get:
+      description: Returns the doctors practising at a clinic, paginated.
+      parameters:
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.doctorsListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: List clinic doctors
+      tags:
+      - booking
+  /booking/clinics/{id}/slots:
+    get:
+      description: Returns open booking windows for a doctor at a clinic on a date.
+      parameters:
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Doctor profile id
+        in: query
+        name: doctor_id
+        required: true
+        type: string
+      - description: Date in YYYY-MM-DD
+        in: query
+        name: date
+        required: true
+        type: string
+      - description: Appointment type id (uses clinic default when absent)
+        in: query
+        name: appointment_type_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.slotsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: Get available slots
+      tags:
+      - booking
+  /booking/doctors/{id}:
+    get:
+      description: Returns a doctor regardless of which clinic they practise at.
+      parameters:
+      - description: Doctor profile id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.doctorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      summary: Get doctor
+      tags:
+      - booking
+  /clinics:
+    get:
+      description: Returns all active clinics. Patients may browse the full registry.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_clinic_api.clinicsListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: List user's tenants
+      summary: List clinics
       tags:
-      - auth
+      - clinics
+    post:
+      consumes:
+      - application/json
+      description: Provisions a new clinic and its tenant schema. Gated on the global
+        super-admin flag (users.is_admin); no X-Tenant-ID is involved.
+      parameters:
+      - description: Clinic details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.createClinicInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.clinicResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create clinic
+      tags:
+      - clinics
+  /clinics/{id}/staff:
+    post:
+      consumes:
+      - application/json
+      description: Associates a user with a clinic and assigns them a role. Requires
+        the admin role in the clinic identified by X-Tenant-ID.
+      parameters:
+      - description: Tenant id (clinic to assign into)
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Staff binding
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.bindStaffInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.bindStaffResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Bind staff to clinic
+      tags:
+      - clinics
+  /clinics/mine:
+    get:
+      description: Returns the clinics the current user has a membership in; an empty
+        list when the user has no clinics.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_clinic_api.clinicsListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List my clinics
+      tags:
+      - clinics
   /doctors:
     get:
       description: Returns all profiles holding the doctor role in the active clinic.
@@ -1103,8 +1381,8 @@ paths:
       - BearerAuth: []
       summary: List doctors
       tags:
-      - directory
-  /patient/appointments:
+      - catalog
+  /portal/appointments:
     get:
       description: Returns the patient's appointments across every clinic they attend.
       produces:
@@ -1113,7 +1391,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentsListResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentsListResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1122,7 +1400,7 @@ paths:
       - BearerAuth: []
       summary: List my appointments
       tags:
-      - patient
+      - portal
     post:
       consumes:
       - application/json
@@ -1145,7 +1423,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -1166,8 +1444,8 @@ paths:
       - BearerAuth: []
       summary: Book an appointment
       tags:
-      - patient
-  /patient/appointments/{id}:
+      - portal
+  /portal/appointments/{id}:
     get:
       description: Returns one of the patient's appointments. The clinic it belongs
         to is passed explicitly.
@@ -1188,7 +1466,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -1201,8 +1479,8 @@ paths:
       - BearerAuth: []
       summary: Get my appointment
       tags:
-      - patient
-  /patient/appointments/{id}/cancel:
+      - portal
+  /portal/appointments/{id}/cancel:
     post:
       consumes:
       - application/json
@@ -1226,7 +1504,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -1243,8 +1521,8 @@ paths:
       - BearerAuth: []
       summary: Cancel my appointment
       tags:
-      - patient
-  /patient/appointments/{id}/reschedule:
+      - portal
+  /portal/appointments/{id}/reschedule:
     post:
       consumes:
       - application/json
@@ -1268,7 +1546,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.appointmentResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse'
         "400":
           description: Bad Request
           schema:
@@ -1285,8 +1563,8 @@ paths:
       - BearerAuth: []
       summary: Reschedule my appointment
       tags:
-      - patient
-  /patient/me:
+      - portal
+  /portal/me:
     get:
       description: Returns the patient's global identity.
       produces:
@@ -1295,7 +1573,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.userResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.userResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1304,7 +1582,7 @@ paths:
       - BearerAuth: []
       summary: Get my profile
       tags:
-      - patient
+      - portal
     put:
       consumes:
       - application/json
@@ -1322,7 +1600,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_patient_api.userResponse'
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.userResponse'
         "400":
           description: Bad Request
           schema:
@@ -1335,7 +1613,7 @@ paths:
       - BearerAuth: []
       summary: Update my profile
       tags:
-      - patient
+      - portal
   /profiles:
     get:
       description: Returns every person registered in the active clinic (X-Tenant-ID),
@@ -1365,7 +1643,7 @@ paths:
       - BearerAuth: []
       summary: List clinic profiles
       tags:
-      - directory
+      - catalog
     post:
       consumes:
       - application/json
@@ -1410,285 +1688,7 @@ paths:
       - BearerAuth: []
       summary: Register a profile
       tags:
-      - directory
-  /public/clinics:
-    get:
-      description: Returns active clinics for public discovery, paginated.
-      parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 20
-        description: Page size
-        in: query
-        maximum: 100
-        minimum: 1
-        name: size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.clinicsListResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      summary: List clinics
-      tags:
-      - public
-  /public/clinics/{id}:
-    get:
-      description: Returns a clinic's public profile with its services and doctors.
-      parameters:
-      - description: Clinic id
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.clinicDetailResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      summary: Get clinic
-      tags:
-      - public
-  /public/clinics/{id}/doctors:
-    get:
-      description: Returns the doctors practising at a clinic, paginated.
-      parameters:
-      - description: Clinic id
-        in: path
-        name: id
-        required: true
-        type: string
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 20
-        description: Page size
-        in: query
-        maximum: 100
-        minimum: 1
-        name: size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.doctorsListResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      summary: List clinic doctors
-      tags:
-      - public
-  /public/clinics/{id}/slots:
-    get:
-      description: Returns open booking windows for a doctor at a clinic on a date.
-      parameters:
-      - description: Clinic id
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Doctor profile id
-        in: query
-        name: doctor_id
-        required: true
-        type: string
-      - description: Date in YYYY-MM-DD
-        in: query
-        name: date
-        required: true
-        type: string
-      - description: Appointment type id (uses clinic default when absent)
-        in: query
-        name: appointment_type_id
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.slotsResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      summary: Get available slots
-      tags:
-      - public
-  /public/doctors/{id}:
-    get:
-      description: Returns a doctor regardless of which clinic they practise at.
-      parameters:
-      - description: Doctor profile id
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.doctorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      summary: Get doctor
-      tags:
-      - public
-  /tenants:
-    get:
-      description: Returns all active clinics. Patients may browse the full registry.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.tenantsListResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List clinics
-      tags:
-      - tenants
-    post:
-      consumes:
-      - application/json
-      description: Provisions a new clinic and its tenant schema. Gated on the global
-        super-admin flag (users.is_admin); no X-Tenant-ID is involved.
-      parameters:
-      - description: Clinic details
-        in: body
-        name: input
-        required: true
-        schema:
-          $ref: '#/definitions/api.createTenantInput'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/api.tenantResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create clinic
-      tags:
-      - tenants
-  /tenants/{id}/staff:
-    post:
-      consumes:
-      - application/json
-      description: Associates a user with a clinic and assigns them a role. Requires
-        the admin role in the clinic identified by X-Tenant-ID.
-      parameters:
-      - description: Tenant id (clinic to assign into)
-        in: header
-        name: X-Tenant-ID
-        required: true
-        type: string
-      - description: Tenant id
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Staff binding
-        in: body
-        name: input
-        required: true
-        schema:
-          $ref: '#/definitions/api.bindStaffInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.bindStaffResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Bind staff to clinic
-      tags:
-      - tenants
-  /tenants/mine:
-    get:
-      description: Returns the clinics the current user has a membership in; an empty
-        list when the user has no clinics.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.tenantsListResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/apperr.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List my clinics
-      tags:
-      - tenants
+      - catalog
 securityDefinitions:
   BearerAuth:
     description: Authenticate as `Bearer <access_token>`.

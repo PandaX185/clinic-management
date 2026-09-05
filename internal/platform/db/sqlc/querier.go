@@ -13,30 +13,30 @@ import (
 
 type Querier interface {
 	AssignRoleToProfile(ctx context.Context, arg AssignRoleToProfileParams) error
-	CountActiveTenants(ctx context.Context) (int64, error)
+	CountActiveClinics(ctx context.Context) (int64, error)
 	CountAppointments(ctx context.Context, arg CountAppointmentsParams) (int64, error)
 	CountProfilesByRole(ctx context.Context, name string) (int64, error)
 	// Appointments (schema v2: profile-based, typed, queue-ready)
 	CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error)
 	CreateAppointmentType(ctx context.Context, arg CreateAppointmentTypeParams) (AppointmentType, error)
-	CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error)
 	// Tenants (global registry) — schema v2
-	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
+	CreateClinic(ctx context.Context, arg CreateClinicParams) (Tenant, error)
+	CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteRefreshToken(ctx context.Context, arg DeleteRefreshTokenParams) error
-	EnsureUserTenantMembership(ctx context.Context, arg EnsureUserTenantMembershipParams) error
+	EnsureUserClinicMembership(ctx context.Context, arg EnsureUserClinicMembershipParams) error
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	// Ownership-scoped read: the requested appointment is only returned when it
 	// belongs to the given user (through their patient profile).
 	GetAppointmentByIDAndUser(ctx context.Context, arg GetAppointmentByIDAndUserParams) (Appointment, error)
 	GetAppointmentTypeByID(ctx context.Context, id uuid.UUID) (AppointmentType, error)
+	GetClinicByID(ctx context.Context, id uuid.UUID) (Tenant, error)
+	GetClinicBySlug(ctx context.Context, slug string) (Tenant, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
 	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
 	GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
 	GetRoleByName(ctx context.Context, name string) (Role, error)
-	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
-	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
 	GetUserAdminFlag(ctx context.Context, id uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Auth (schema v2: phone-only identity)
@@ -52,18 +52,18 @@ type Querier interface {
 	// Appointments overlapping the [from, to) window for a doctor; used to
 	// compute busy intervals when building available slots.
 	ListAppointmentsForDoctorDate(ctx context.Context, arg ListAppointmentsForDoctorDateParams) ([]Appointment, error)
+	ListClinics(ctx context.Context) ([]Tenant, error)
+	ListClinicsPaginated(ctx context.Context, arg ListClinicsPaginatedParams) ([]Tenant, error)
 	// Active schedule windows for an active doctor on a given week day (0 = Sunday).
 	ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]ListDoctorSchedulesOnDayRow, error)
 	ListProfiles(ctx context.Context) ([]ListProfilesRow, error)
 	ListProfilesByRole(ctx context.Context, name string) ([]Profile, error)
 	ListProfilesByRolePaginated(ctx context.Context, arg ListProfilesByRolePaginatedParams) ([]Profile, error)
-	ListTenants(ctx context.Context) ([]Tenant, error)
-	ListTenantsPaginated(ctx context.Context, arg ListTenantsPaginatedParams) ([]Tenant, error)
+	ListUserClinicIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]ListUserRolesRow, error)
-	ListUserTenantIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	ProfileHasRole(ctx context.Context, arg ProfileHasRoleParams) (bool, error)
 	RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error)
-	SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error
+	SetClinicActive(ctx context.Context, arg SetClinicActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
 	UpdateAppointmentType(ctx context.Context, arg UpdateAppointmentTypeParams) (AppointmentType, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)

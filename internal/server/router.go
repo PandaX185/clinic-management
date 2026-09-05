@@ -9,14 +9,14 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	apptapi "github.com/PandaX185/clinic-management/internal/appointment/api"
-	authapi "github.com/PandaX185/clinic-management/internal/auth/api"
-	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
-	directoryapi "github.com/PandaX185/clinic-management/internal/directory/api"
-	patientapi "github.com/PandaX185/clinic-management/internal/patient/api"
-	publicapi "github.com/PandaX185/clinic-management/internal/public/api"
-	tenantapi "github.com/PandaX185/clinic-management/internal/tenant/api"
-	tenantsvc "github.com/PandaX185/clinic-management/internal/tenant/service"
+	bookingapi "github.com/PandaX185/clinic-management/internal/booking/api"
+	catapi "github.com/PandaX185/clinic-management/internal/catalog/api"
+	clinicapi "github.com/PandaX185/clinic-management/internal/clinic/api"
+	clinicsvc "github.com/PandaX185/clinic-management/internal/clinic/service"
+	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
+	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
+	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
+	schedapi "github.com/PandaX185/clinic-management/internal/scheduling/api"
 
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
@@ -26,15 +26,15 @@ type RouterDeps struct {
 	Cfg             config.Config
 	RDB             *redis.Client
 	Logger          Logger
-	AuthH           *authapi.Handler
-	AuthSvc         *authsvc.Service
-	AppointH        *apptapi.Handler
-	TenantH         *tenantapi.Handler
-	TenantSvc       *tenantsvc.Service
+	AuthH           *idapi.Handler
+	AuthSvc         *idsvc.Service
+	AppointH        *schedapi.Handler
+	ClinicH         *clinicapi.Handler
+	ClinicSvc       *clinicsvc.Service
 	ProfileResolver ProfileResolver
-	DirectoryH      *directoryapi.Handler
-	PublicH         *publicapi.Handler
-	PatientH        *patientapi.Handler
+	DirectoryH      *catapi.Handler
+	PublicH         *bookingapi.Handler
+	PatientH        *portalapi.Handler
 	Metrics         *metrics.Metrics
 }
 
@@ -81,32 +81,32 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 	// Public clinic discovery: unauthenticated, no tenant context. This is
 	// the surface patients reach before authenticating.
-	deps.PublicH.RegisterRoutes(apiV1.Group("/public"))
+	deps.PublicH.RegisterRoutes(apiV1.Group("/booking"))
 
 	// Global (auth-only) routes: authenticated identity but no X-Tenant-ID.
 	global := apiV1.Group("")
-	global.Use(authapi.JwtMiddleware(deps.AuthSvc))
+	global.Use(idapi.JwtMiddleware(deps.AuthSvc))
 
 	// Global super-admin only: provisioning clinics has no tenant context to
 	// resolve an admin role from, so it is gated on the global users.is_admin
 	// flag rather than a per-clinic role.
 	globalAdmin := global.Group("")
-	globalAdmin.Use(authapi.RequireGlobalAdmin(deps.AuthSvc))
-	globalAdmin.POST("/tenants", deps.TenantH.Create)
+	globalAdmin.Use(idapi.RequireGlobalAdmin(deps.AuthSvc))
+	globalAdmin.POST("/clinics", deps.ClinicH.Create)
 
 	// Tenant-scoped routes: X-Tenant-ID required; role resolved per clinic.
 	protected := apiV1.Group("")
-	protected.Use(authapi.JwtMiddleware(deps.AuthSvc))
-	protected.Use(TenantMiddleware(deps.TenantSvc, deps.ProfileResolver))
+	protected.Use(idapi.JwtMiddleware(deps.AuthSvc))
+	protected.Use(TenantMiddleware(deps.ClinicSvc, deps.ProfileResolver))
 
 	// Per-clinic admin: resolved against the active tenant's roles.
 	admin := protected.Group("")
-	admin.Use(authapi.RequireRoles("admin"))
-	admin.POST("/tenants/:id/staff", deps.TenantH.BindStaff)
+	admin.Use(idapi.RequireRoles("admin"))
+	admin.POST("/clinics/:id/staff", deps.ClinicH.BindStaff)
 
-	deps.TenantH.RegisterRoutes(global) // GET /tenants, /tenants/mine — browse clinics
+	deps.ClinicH.RegisterRoutes(global) // GET /clinics, /clinics/mine — browse clinics
 	authProtected := global.Group("/auth")
-	deps.AuthH.RegisterProtectedRoutes(authProtected) // GET /auth/me, /auth/tenants
+	deps.AuthH.RegisterProtectedRoutes(authProtected) // GET /auth/me, /auth/clinics
 
 	// Patient portal: JWT-only, operations span clinics so no X-Tenant-ID.
 	deps.PatientH.RegisterRoutes(global)

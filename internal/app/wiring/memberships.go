@@ -7,52 +7,52 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	authsvc "github.com/PandaX185/clinic-management/internal/auth/service"
+	"github.com/PandaX185/clinic-management/internal/clinic/repo"
+	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
-	tenantrepo "github.com/PandaX185/clinic-management/internal/tenant/repo"
 )
 
-// tenantMembershipProvider implements auth.Service's membership port using the
-// global user_tenants index plus per-tenant role resolution. It lives in the
-// wiring package so the auth feature never imports tenant (which already
-// imports auth for its handler).
-type tenantMembershipProvider struct {
+// clinicMembershipProvider implements identity.Service's membership port using
+// the global user_tenants index plus per-tenant role resolution. It lives in
+// the wiring package so the identity feature never imports clinic (which
+// already imports identity for its handler).
+type clinicMembershipProvider struct {
 	pool  *pgxpool.Pool
-	store *tenantrepo.PostgresStore
+	store *repo.PostgresStore
 }
 
 // MembershipsForUser returns the clinics the user is a member of with their
 // primary role in each. Users with no membership get an empty list, matching
-// the /tenants/mine behaviour.
-func (p *tenantMembershipProvider) MembershipsForUser(ctx context.Context, userID uuid.UUID) ([]authsvc.UserTenant, error) {
-	tenants, err := p.store.TenantsForUser(ctx, userID)
+// the /clinics/mine behaviour.
+func (p *clinicMembershipProvider) MembershipsForUser(ctx context.Context, userID uuid.UUID) ([]idsvc.UserClinic, error) {
+	clinics, err := p.store.ClinicsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if len(tenants) == 0 {
-		return []authsvc.UserTenant{}, nil
+	if len(clinics) == 0 {
+		return []idsvc.UserClinic{}, nil
 	}
 
-	out := make([]authsvc.UserTenant, 0, len(tenants))
-	for _, t := range tenants {
-		role, err := p.primaryRole(ctx, userID, t.Slug)
+	out := make([]idsvc.UserClinic, 0, len(clinics))
+	for _, c := range clinics {
+		role, err := p.primaryRole(ctx, userID, c.Slug)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, authsvc.UserTenant{
-			TenantID:   t.ID,
-			TenantName: t.Name,
-			TenantSlug: t.Slug,
+		out = append(out, idsvc.UserClinic{
+			ClinicID:   c.ID,
+			ClinicName: c.Name,
+			ClinicSlug: c.Slug,
 			RoleName:   role,
 		})
 	}
 	return out, nil
 }
 
-// primaryRole resolves the user's first role inside the tenant's schema.
-func (p *tenantMembershipProvider) primaryRole(ctx context.Context, userID uuid.UUID, slug string) (string, error) {
+// primaryRole resolves the user's first role inside the clinic's schema.
+func (p *clinicMembershipProvider) primaryRole(ctx context.Context, userID uuid.UUID, slug string) (string, error) {
 	var role string
 	err := database.NewScopedPool(p.pool).WithSchema(ctx, slug, func(tx pgx.Tx) error {
 		profile, err := db.New(tx).GetProfileByUserID(ctx, userID)

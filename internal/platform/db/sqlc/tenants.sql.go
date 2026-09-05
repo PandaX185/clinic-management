@@ -11,32 +11,32 @@ import (
 	"github.com/google/uuid"
 )
 
-const countActiveTenants = `-- name: CountActiveTenants :one
+const countActiveClinics = `-- name: CountActiveClinics :one
 SELECT COUNT(*) FROM tenants WHERE status = 'active'
 `
 
-func (q *Queries) CountActiveTenants(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countActiveTenants)
+func (q *Queries) CountActiveClinics(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveClinics)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const createTenant = `-- name: CreateTenant :one
+const createClinic = `-- name: CreateClinic :one
 
 INSERT INTO tenants (name, slug)
 VALUES ($1, $2)
 RETURNING id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours
 `
 
-type CreateTenantParams struct {
+type CreateClinicParams struct {
 	Name string
 	Slug string
 }
 
 // Tenants (global registry) — schema v2
-func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error) {
-	row := q.db.QueryRow(ctx, createTenant, arg.Name, arg.Slug)
+func (q *Queries) CreateClinic(ctx context.Context, arg CreateClinicParams) (Tenant, error) {
+	row := q.db.QueryRow(ctx, createClinic, arg.Name, arg.Slug)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
@@ -55,28 +55,28 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 	return i, err
 }
 
-const ensureUserTenantMembership = `-- name: EnsureUserTenantMembership :exec
+const ensureUserClinicMembership = `-- name: EnsureUserClinicMembership :exec
 INSERT INTO user_tenants (user_id, tenant_id)
 VALUES ($1, $2)
 ON CONFLICT (user_id, tenant_id) DO NOTHING
 `
 
-type EnsureUserTenantMembershipParams struct {
+type EnsureUserClinicMembershipParams struct {
 	UserID   uuid.UUID
 	TenantID uuid.UUID
 }
 
-func (q *Queries) EnsureUserTenantMembership(ctx context.Context, arg EnsureUserTenantMembershipParams) error {
-	_, err := q.db.Exec(ctx, ensureUserTenantMembership, arg.UserID, arg.TenantID)
+func (q *Queries) EnsureUserClinicMembership(ctx context.Context, arg EnsureUserClinicMembershipParams) error {
+	_, err := q.db.Exec(ctx, ensureUserClinicMembership, arg.UserID, arg.TenantID)
 	return err
 }
 
-const getTenantByID = `-- name: GetTenantByID :one
+const getClinicByID = `-- name: GetClinicByID :one
 SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE id = $1
 `
 
-func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
-	row := q.db.QueryRow(ctx, getTenantByID, id)
+func (q *Queries) GetClinicByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
+	row := q.db.QueryRow(ctx, getClinicByID, id)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
@@ -95,12 +95,12 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 	return i, err
 }
 
-const getTenantBySlug = `-- name: GetTenantBySlug :one
+const getClinicBySlug = `-- name: GetClinicBySlug :one
 SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE slug = $1
 `
 
-func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, error) {
-	row := q.db.QueryRow(ctx, getTenantBySlug, slug)
+func (q *Queries) GetClinicBySlug(ctx context.Context, slug string) (Tenant, error) {
+	row := q.db.QueryRow(ctx, getClinicBySlug, slug)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
@@ -119,12 +119,12 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 	return i, err
 }
 
-const listTenants = `-- name: ListTenants :many
+const listClinics = `-- name: ListClinics :many
 SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE status = 'active' ORDER BY created_at DESC
 `
 
-func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
-	rows, err := q.db.Query(ctx, listTenants)
+func (q *Queries) ListClinics(ctx context.Context) ([]Tenant, error) {
+	rows, err := q.db.Query(ctx, listClinics)
 	if err != nil {
 		return nil, err
 	}
@@ -156,17 +156,17 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 	return items, nil
 }
 
-const listTenantsPaginated = `-- name: ListTenantsPaginated :many
+const listClinicsPaginated = `-- name: ListClinicsPaginated :many
 SELECT id, name, slug, status, created_at, updated_at, address, city, phone, email, description, hours FROM tenants WHERE status = 'active' ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
-type ListTenantsPaginatedParams struct {
+type ListClinicsPaginatedParams struct {
 	Limit  int32
 	Offset int32
 }
 
-func (q *Queries) ListTenantsPaginated(ctx context.Context, arg ListTenantsPaginatedParams) ([]Tenant, error) {
-	rows, err := q.db.Query(ctx, listTenantsPaginated, arg.Limit, arg.Offset)
+func (q *Queries) ListClinicsPaginated(ctx context.Context, arg ListClinicsPaginatedParams) ([]Tenant, error) {
+	rows, err := q.db.Query(ctx, listClinicsPaginated, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -198,12 +198,12 @@ func (q *Queries) ListTenantsPaginated(ctx context.Context, arg ListTenantsPagin
 	return items, nil
 }
 
-const listUserTenantIDs = `-- name: ListUserTenantIDs :many
+const listUserClinicIDs = `-- name: ListUserClinicIDs :many
 SELECT tenant_id FROM user_tenants WHERE user_id = $1
 `
 
-func (q *Queries) ListUserTenantIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listUserTenantIDs, userID)
+func (q *Queries) ListUserClinicIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserClinicIDs, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -222,16 +222,16 @@ func (q *Queries) ListUserTenantIDs(ctx context.Context, userID uuid.UUID) ([]uu
 	return items, nil
 }
 
-const setTenantActive = `-- name: SetTenantActive :exec
+const setClinicActive = `-- name: SetClinicActive :exec
 UPDATE tenants SET status = CASE WHEN $2 THEN 'active' ELSE 'inactive' END WHERE id = $1
 `
 
-type SetTenantActiveParams struct {
+type SetClinicActiveParams struct {
 	ID     uuid.UUID
 	Status string
 }
 
-func (q *Queries) SetTenantActive(ctx context.Context, arg SetTenantActiveParams) error {
-	_, err := q.db.Exec(ctx, setTenantActive, arg.ID, arg.Status)
+func (q *Queries) SetClinicActive(ctx context.Context, arg SetClinicActiveParams) error {
+	_, err := q.db.Exec(ctx, setClinicActive, arg.ID, arg.Status)
 	return err
 }

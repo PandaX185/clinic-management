@@ -1,18 +1,8 @@
-//go:build integration
-
 // Integration tests against a real PostgreSQL that prove the migration
 // pipeline and the database-level invariants (BR-01 booking exclusion, derived
-// queue positions) actually hold on committed SQL.
-//
-// They are gated behind the "integration" build tag and skip gracefully when
-// the TEST_PG_URL database is unreachable, so `go test ./...` in CI (or on a
-// machine without Postgres) never breaks. Run with:
-//
-//	TEST_PG_URL='postgres://clinic:clinic@localhost:5432/postgres?sslmode=disable' \
-//	    go test -tags=integration ./internal/platform/database/
-//
-// Each run creates and drops a throwaway database (clinic_it_<hex>) so the
-// dev database is never touched.
+// queue positions) actually hold on committed SQL. Requires a running Postgres
+// (docker compose up). Each run creates and drops a throwaway database
+// (clinic_it_<hex>) so the dev database is never touched.
 package database
 
 import (
@@ -54,8 +44,8 @@ func runIntegration(m *testing.M) int {
 		err = admin.Ping(ctx)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "integration tests skipped: postgres unreachable:", err)
-		return 0
+		fmt.Fprintln(os.Stderr, "integration tests require a running Postgres (docker compose up):", err)
+		return 1
 	}
 	defer admin.Close()
 

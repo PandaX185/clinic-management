@@ -1,4 +1,4 @@
-.PHONY: help build run test test-race test-coverage test-integration lint vet fmt sqlc swagger migrate-up migrate-down docker-build docker-up docker-down tidy
+.PHONY: help build run test test-race test-coverage lint vet fmt sqlc swagger migrate-up migrate-down docker-build docker-up docker-down tidy
 
 space := $(eval) $(eval)
 comma := ,
@@ -10,7 +10,6 @@ help:
 	@echo "  test           - run unit tests"
 	@echo "  test-race      - run tests with race detector"
 	@echo "  test-coverage  - coverage profile + HTML report"
-	@echo "  test-integration - integration tests against a real Postgres (TEST_PG_URL)"
 	@echo "  lint           - golangci-lint (if installed)"
 	@echo "  vet            - go vet ./..."
 	@echo "  fmt            - gofmt all sources"
@@ -37,12 +36,6 @@ test-race:
 test-coverage:
 	go test -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
-
-# Integration tests hit a real Postgres; create a throwaway DB (never the dev
-# one). Override TEST_PG_URL to point anywhere. Skipped if the DB is down.
-test-integration:
-	TEST_PG_URL="$${TEST_PG_URL:-postgres://clinic:clinic@localhost:5432/postgres?sslmode=disable}" \
-		go test -tags=integration -count=1 ./internal/platform/database/...
 
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run || echo "golangci-lint not installed"

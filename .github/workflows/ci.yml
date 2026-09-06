@@ -11,6 +11,20 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: clinic
+          POSTGRES_PASSWORD: clinic
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U clinic -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -50,3 +64,11 @@ jobs:
 
       - name: Test with race detector
         run: go test -race ./...
+
+      # Real-Postgres integration: proves the global migrations apply cleanly
+      # on a fresh DB, the btree_gist exclusion invariant holds, and derived
+      # queue positions behave. Creates its own throwaway database.
+      - name: Integration tests against Postgres
+        env:
+          TEST_PG_URL: postgres://clinic:clinic@localhost:5432/postgres?sslmode=disable
+        run: go test -tags=integration -race ./internal/platform/database/...

@@ -29,7 +29,7 @@ jobs:
         run: |
           go run github.com/swaggo/swag/cmd/swag@v1.16.4 init \
             -g main.go \
-            -d "$(printf '%s' 'cmd/api,internal/booking/api,internal/catalog/api,internal/clinic/api,internal/identity/api,internal/portal/api,internal/scheduling/api' )" \
+            -d "$(printf '%s' 'cmd/api,internal/booking/api,internal/catalog/api,internal/clinic/api,internal/identity/api,internal/portal/api,internal/queue/api,internal/scheduling/api')" \
             -o docs --parseInternal=true --parseDependency=true
           git diff --exit-code docs || \
             (echo "::error::swagger docs are stale — run 'make swagger' and commit" && exit 1)

@@ -69,3 +69,17 @@ func (c *Client) Close() {
 		c.Conn.Close()
 	}
 }
+
+// Publish publishes payload to the given JetStream subject. The event stream
+// was declared with a WorkQueue retention policy, so subscribers dequeue
+// messages on ack (at-least-once delivery).
+func (c *Client) Publish(ctx context.Context, subject string, payload []byte) error {
+	if c.Jet == nil {
+		return fmt.Errorf("nats jetstream not available")
+	}
+	_, err := c.Jet.Publish(ctx, subject, payload)
+	if err != nil {
+		return fmt.Errorf("nats publish %q: %w", subject, err)
+	}
+	return nil
+}

@@ -13,6 +13,8 @@ type Metrics struct {
 
 	HTTPRequestsTotal  *prometheus.CounterVec
 	HTTPRequestLatency *prometheus.HistogramVec
+
+	NotificationsDeliveredTotal prometheus.Counter
 }
 
 func New() *Metrics {
@@ -30,6 +32,10 @@ func New() *Metrics {
 			Help:    "HTTP request latency in seconds.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"method", "route"}),
+		NotificationsDeliveredTotal: f.NewCounter(prometheus.CounterOpts{
+			Name: "notifications_delivered_total",
+			Help: "Total notifications delivered by the async worker.",
+		}),
 	}
 	return m
 }

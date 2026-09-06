@@ -31,6 +31,7 @@ import (
 	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
 	server "github.com/PandaX185/clinic-management/internal/server"
 
+	notif "github.com/PandaX185/clinic-management/internal/notification"
 	"github.com/PandaX185/clinic-management/internal/platform/config"
 	"github.com/PandaX185/clinic-management/internal/platform/metrics"
 	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
@@ -56,9 +57,10 @@ type Deps struct {
 }
 
 // Build wires repositories, services, handlers and middleware into a fully
-// configured gin.Engine and returns it alongside the metrics registry so the
-// caller can expose them.
-func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
+// configured gin.Engine and returns it alongside the metrics registry and an
+// optional notification worker (nil when NATS is unavailable) so the caller
+// can expose metrics and run worker goroutines.
+func Build(d Deps) (*gin.Engine, *metrics.Metrics, *notif.Worker, error) {
 	m := metrics.New()
 
 	authRepo := idrepo.NewPostgresRepository(d.Pool)
@@ -80,7 +82,11 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	authSvc.WithClinicMemberships(membershipProvider)
 
 	aptRepo := schedrepo.NewPostgresRepository(d.Pool)
-	aptSvc := schedsvc.NewServiceWithIdentity(aptRepo, nil, schedrepo.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
+	var aptPublisher schedsvc.EventPublisher
+	if d.NATS != nil {
+		aptPublisher = notif.AppointmentEventPublisher{Bus: d.NATS, Subject: natsclient.SubjectNotify}
+	}
+	aptSvc := schedsvc.NewServiceWithIdentity(aptRepo, aptPublisher, schedrepo.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
 	aptH := schedapi.NewHandler(aptSvc)
 
 	dirRepo := catrepo.NewPostgresRepo(d.Pool)
@@ -124,5 +130,10 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	// orchestrators can check them without auth or a tenant context.
 	server.NewHealth(d.Cfg, d.Pool, d.RDB, d.NATS).RegisterRoutes(r)
 
-	return r, m, nil
+	var notifWorker *notif.Worker
+	if d.NATS != nil {
+		notifWorker = notif.NewWorker(d.NATS, &notif.Stub{Log: d.Log, M: m}, d.Log)
+	}
+
+	return r, m, notifWorker, nil
 }

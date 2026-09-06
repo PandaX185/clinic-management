@@ -94,7 +94,7 @@ func run() error {
 	go cleaner.Run(ctx, log)
 	defer cleaner.Stop()
 
-	router, _, err := wiring.Build(wiring.Deps{
+	router, _, notifWorker, err := wiring.Build(wiring.Deps{
 		Cfg:  cfg,
 		Log:  log,
 		Pool: pool,
@@ -103,6 +103,17 @@ func run() error {
 	})
 	if err != nil {
 		return err
+	}
+
+	// The notification worker dequeues appointment events and hands them to
+	// the notifier. It only exists when NATS is connected (see wiring).
+	if notifWorker != nil {
+		go func() {
+			if err := notifWorker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("notification worker stopped", "error", err.Error())
+			}
+		}()
+		log.Info("notification worker started")
 	}
 
 	srv := &http.Server{

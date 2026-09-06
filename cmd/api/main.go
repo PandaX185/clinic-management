@@ -1,8 +1,21 @@
 // @title Clinic Management API
 // @version 1.0.0
-// @description Multi-tenant clinic management: auth, tenant registry, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).
+// @description Multi-tenant clinic management: auth, clinic registry, booking, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).
 // @host localhost:8080
 // @BasePath /api/v1
+//
+// @Tag.name Identity
+// @Tag.description Global accounts, auth, and memberships across clinics.
+// @Tag.name Clinics
+// @Tag.description Clinic registry and per-clinic staffing.
+// @Tag.name Catalog
+// @Tag.description Clinical catalog: profiles, doctors, services, and appointment types.
+// @Tag.name Scheduling
+// @Tag.description Appointment lifecycle: book, cancel, reschedule, and status transitions.
+// @Tag.name Booking
+// @Tag.description Public clinic discovery and doctor slot availability.
+// @Tag.name Portal
+// @Tag.description Patient portal: the patient's own profile and appointments.
 //
 // @securityDefinitions.apikey BearerAuth
 // @in header
@@ -60,7 +73,7 @@ func run() error {
 	rdb := redisclient.TryNew(ctx, cfg.RedisURL, cfg.RedisConnect, log)
 	defer func() {
 		if rdb != nil {
-			rdb.Close()
+			_ = rdb.Close()
 		}
 	}()
 

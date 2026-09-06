@@ -143,7 +143,7 @@ func (h *Handler) List(c *gin.Context) {
 	for i := range items {
 		out = append(out, *toResponse(&items[i]))
 	}
-	c.JSON(http.StatusOK, gin.H{"items": out, "total": total, "limit": q.Limit, "offset": q.Offset})
+	c.JSON(http.StatusOK, appointmentsListResponse{Items: out, Total: int(total), Limit: q.Limit, Offset: q.Offset})
 }
 
 // @Summary Cancel appointment

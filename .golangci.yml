@@ -1,0 +1,20 @@
+# golangci-lint v2 configuration.
+#
+# Standard linter set (errcheck, govet, ineffassign, staticcheck, unused).
+#
+# errcheck: gin's (*Context).Error appends to the request-scoped error chain,
+# which the central error middleware reads and renders. It is intentional
+# fire-and-forget — the gin-idiomatic way to signal a handler failure — so we
+# exclude it the same way one ignores log.Print's return. Everything else
+# (Close/Rollback/etc.) stays guarded.
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/gin-gonic/gin.Context).Error
+
+issues:
+  max-same-issues: 0

@@ -39,7 +39,7 @@ func (h *Handler) List(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": toResponses(items)})
+	c.JSON(http.StatusOK, clinicsListResponse{Items: toResponses(items)})
 }
 
 // ListMine returns the clinics the caller is a member of.
@@ -64,7 +64,7 @@ func (h *Handler) ListMine(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": toResponses(items)})
+	c.JSON(http.StatusOK, clinicsListResponse{Items: toResponses(items)})
 }
 
 // Create provisions a new clinic (admin-only; mounted by main.go on an
@@ -137,5 +137,5 @@ func (h *Handler) BindStaff(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"bound": true})
+	c.JSON(http.StatusOK, bindStaffResponse{Bound: true})
 }

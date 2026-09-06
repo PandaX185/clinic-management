@@ -45,11 +45,9 @@ func (r *PostgresRepo) ListProfiles(ctx context.Context) ([]service.Profile, err
 				UserID:      row.UserID,
 				DisplayName: row.DisplayName,
 				Status:      row.Status,
+				Roles:       append([]string(nil), row.RoleNames...),
 				CreatedAt:   row.CreatedAt.Format(time.RFC3339),
 				UpdatedAt:   row.UpdatedAt.Format(time.RFC3339),
-			}
-			for _, rn := range row.RoleNames {
-				p.Roles = append(p.Roles, rn)
 			}
 			out = append(out, p)
 		}

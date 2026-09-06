@@ -188,7 +188,7 @@ func (h *Handler) Book(c *gin.Context) {
 	if in.DurationMinutes <= 0 {
 		in.DurationMinutes = 30
 	}
-	appt, err := h.svc.Book(c.Request.Context(), userID, service.BookInput{
+	appt, replayed, err := h.svc.Book(c.Request.Context(), userID, service.BookInput{
 		ClinicID:        clinicID,
 		DoctorID:        doctorID,
 		StartTime:       in.StartTime,
@@ -199,6 +199,9 @@ func (h *Handler) Book(c *gin.Context) {
 	if err != nil {
 		c.Error(err)
 		return
+	}
+	if replayed {
+		c.Header("Idempotent-Replay", "true")
 	}
 	c.JSON(http.StatusCreated, toAppointmentResponse(appt))
 }

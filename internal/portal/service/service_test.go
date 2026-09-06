@@ -28,11 +28,14 @@ func TestBook_ProvisionsProfileAndBooksInClinic(t *testing.T) {
 	aptSvc := schedsvc.NewServiceWithIdentity(apptRepo, nil, fixedIdentity{patientID: patientID}, time.Minute)
 	svc := service.NewService(fake, aptSvc)
 
-	got, err := svc.Book(context.Background(), userID, service.BookInput{
+	got, replayed, err := svc.Book(context.Background(), userID, service.BookInput{
 		ClinicID: clinicID, DoctorID: doctorID, StartTime: start, DurationMinutes: 30,
 	})
 	if err != nil {
 		t.Fatalf("Book: %v", err)
+	}
+	if replayed {
+		t.Errorf("expected a fresh booking, got replay=true")
 	}
 
 	if fake.ensureSlug != "acme" || fake.ensureUserID != userID {
@@ -54,7 +57,7 @@ func TestBook_UnknownClinicFails(t *testing.T) {
 	aptSvc := schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute)
 	svc := service.NewService(fake, aptSvc)
 
-	_, err := svc.Book(context.Background(), uuid.New(), service.BookInput{
+	_, _, err := svc.Book(context.Background(), uuid.New(), service.BookInput{
 		ClinicID: uuid.New(), DoctorID: uuid.New(), StartTime: time.Now().Add(time.Hour), DurationMinutes: 30,
 	})
 	ae := apperr.From(err)

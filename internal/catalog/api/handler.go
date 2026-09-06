@@ -52,7 +52,7 @@ func (h *Handler) ListProfiles(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": toProfileResponses(items)})
+	c.JSON(http.StatusOK, profilesListResponse{Items: toProfileResponses(items)})
 }
 
 // @Summary Register a profile
@@ -104,7 +104,7 @@ func (h *Handler) ListDoctors(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": toProfileResponses(items)})
+	c.JSON(http.StatusOK, profilesListResponse{Items: toProfileResponses(items)})
 }
 
 // @Summary List appointment types
@@ -122,7 +122,7 @@ func (h *Handler) ListTypes(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": toTypeResponses(items)})
+	c.JSON(http.StatusOK, typesListResponse{Items: toTypeResponses(items)})
 }
 
 // @Summary Create appointment type

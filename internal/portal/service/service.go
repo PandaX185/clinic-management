@@ -121,21 +121,23 @@ func (s *Service) GetAppointment(ctx context.Context, userID uuid.UUID, apptID, 
 }
 
 // Book creates an appointment in the given clinic on the patient's behalf.
-// A patient profile is provisioned in the clinic on first booking.
-func (s *Service) Book(ctx context.Context, userID uuid.UUID, in BookInput) (*Appointment, error) {
+// A patient profile is provisioned in the clinic on first booking. The
+// returned bool reports whether the call was served from the stored
+// idempotency response (a replay) rather than a fresh booking.
+func (s *Service) Book(ctx context.Context, userID uuid.UUID, in BookInput) (*Appointment, bool, error) {
 	clinic, err := s.repo.GetClinic(ctx, in.ClinicID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if in.DoctorID == uuid.Nil {
-		return nil, apperr.Invalid("doctor_id is required")
+		return nil, false, apperr.Invalid("doctor_id is required")
 	}
 	if in.StartTime.IsZero() {
-		return nil, apperr.Invalid("start_time is required")
+		return nil, false, apperr.Invalid("start_time is required")
 	}
 
 	if _, err := s.repo.EnsurePatientProfile(ctx, clinic.Slug, userID); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	result, err := s.apptSvc.BookScoped(database.WithTenantSlug(ctx, clinic.Slug), schedsvc.BookInput{
@@ -146,12 +148,12 @@ func (s *Service) Book(ctx context.Context, userID uuid.UUID, in BookInput) (*Ap
 		IdempotencyKey:  in.IdempotencyKey,
 	}, patientAccess(userID))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if result.Appointment == nil {
-		return nil, apperr.Conflict("booking could not be completed")
+		return nil, false, apperr.Conflict("booking could not be completed")
 	}
-	return toPatientAppointment(result.Appointment, clinic), nil
+	return toPatientAppointment(result.Appointment, clinic), result.Replayed, nil
 }
 
 // Cancel cancels a patient's appointment in the given clinic.

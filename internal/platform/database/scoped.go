@@ -27,7 +27,7 @@ func (p *ScopedPool) WithSchema(ctx context.Context, slug string, fn func(tx pgx
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx,
 		"SELECT set_config('search_path', $1, true)",

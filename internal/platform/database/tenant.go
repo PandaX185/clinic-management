@@ -55,7 +55,7 @@ func ProvisionTenant(ctx context.Context, pool *pgxpool.Pool, slug string) error
 	if err != nil {
 		return fmt.Errorf("begin provisioning tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Identifier is built only from a regex-validated slug, never raw input.
 	if _, err := tx.Exec(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema)); err != nil {
@@ -100,7 +100,7 @@ func WithTenantSchema(ctx context.Context, pool *pgxpool.Pool, slug string, fn f
 	if err != nil {
 		return fmt.Errorf("begin tenant tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	schema := SchemaName(slug)
 	if _, err := tx.Exec(ctx, "SELECT set_config('search_path', $1, true)", schema+", public"); err != nil {

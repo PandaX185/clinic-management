@@ -2575,7 +2575,33 @@ const docTemplate = `{
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "Global accounts, auth, and memberships across clinics.",
+            "name": "Identity"
+        },
+        {
+            "description": "Clinic registry and per-clinic staffing.",
+            "name": "Clinics"
+        },
+        {
+            "description": "Clinical catalog: profiles, doctors, services, and appointment types.",
+            "name": "Catalog"
+        },
+        {
+            "description": "Appointment lifecycle: book, cancel, reschedule, and status transitions.",
+            "name": "Scheduling"
+        },
+        {
+            "description": "Public clinic discovery and doctor slot availability.",
+            "name": "Booking"
+        },
+        {
+            "description": "Patient portal: the patient's own profile and appointments.",
+            "name": "Portal"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
@@ -2585,7 +2611,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "Clinic Management API",
-	Description:      "Multi-tenant clinic management: auth, tenant registry, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).",
+	Description:      "Multi-tenant clinic management: auth, clinic registry, booking, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

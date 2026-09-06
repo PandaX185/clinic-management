@@ -218,6 +218,35 @@ func (r *PostgresRepository) ListDoctorSchedules(ctx context.Context, clinicID u
 	return out, err
 }
 
+func (r *PostgresRepository) ListScheduleDayExceptions(ctx context.Context, clinicID uuid.UUID, doctorID uuid.UUID, date time.Time) ([]bookingsvc.Exception, error) {
+	slug, err := r.slugFor(ctx, clinicID)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []bookingsvc.Exception
+	err = r.scoped.WithSchema(ctx, slug, func(tx pgx.Tx) error {
+		rows, err := db.New(tx).ListScheduleExceptionsForDate(ctx, db.ListScheduleExceptionsForDateParams{
+			DoctorProfileID: doctorID,
+			Date:            date,
+		})
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		out = make([]bookingsvc.Exception, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, bookingsvc.Exception{
+				Date:     row.Date,
+				Type:     row.Type,
+				StartMin: pgTimeMinutes(row.StartTime),
+				EndMin:   pgTimeMinutes(row.EndTime),
+			})
+		}
+		return nil
+	})
+	return out, err
+}
+
 func (r *PostgresRepository) ListDoctorAppointments(ctx context.Context, clinicID uuid.UUID, doctorID uuid.UUID, from, to time.Time) ([]bookingsvc.Appointment, error) {
 	slug, err := r.slugFor(ctx, clinicID)
 	if err != nil {

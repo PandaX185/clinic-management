@@ -87,6 +87,11 @@ func (s *Service) GetAvailableSlots(ctx context.Context, clinicID uuid.UUID, q S
 	if err != nil {
 		return nil, err
 	}
+	exceptions, err := s.repo.ListScheduleDayExceptions(ctx, clinicID, q.DoctorID, q.Date)
+	if err != nil {
+		return nil, err
+	}
+	effective := applyExceptions(schedules, exceptions)
 
 	dayStart := startOfDay(q.Date)
 	dayEnd := dayStart.Add(24 * time.Hour)
@@ -103,7 +108,7 @@ func (s *Service) GetAvailableSlots(ctx context.Context, clinicID uuid.UUID, q S
 
 	now := time.Now()
 	out := make([]Slot, 0, 32)
-	for _, sched := range schedules {
+	for _, sched := range effective {
 		start := dayStart.Add(time.Duration(sched.StartMin) * time.Minute)
 		end := dayStart.Add(time.Duration(sched.EndMin) * time.Minute)
 		// Overnight/wrapping schedules are not supported yet.
@@ -176,4 +181,45 @@ func normalizePage(page, size int) (int, int) {
 
 func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+// applyExceptions folds a doctor's one-off date overrides into their recurring
+// weekly windows. blocked types (leave, holiday, unavailable) carve minutes
+// out of the windows; extra_hours adds a window.
+func applyExceptions(schedules []Schedule, exceptions []Exception) []Schedule {
+	effective := make([]Schedule, 0, len(schedules)+2)
+	effective = append(effective, schedules...)
+	for _, ex := range exceptions {
+		if ex.Type != "extra_hours" {
+			effective = carve(effective, ex.StartMin, ex.EndMin)
+		} else {
+			effective = append(effective, Schedule{StartMin: ex.StartMin, EndMin: ex.EndMin})
+		}
+	}
+	return effective
+}
+
+// carve removes [from, to) from every window in minutes, splitting windows
+// that straddle the range. Empty results are dropped.
+func carve(windows []Schedule, from, to int) []Schedule {
+	out := make([]Schedule, 0, len(windows)+1)
+	for _, w := range windows {
+		if to <= w.StartMin || from >= w.EndMin || to <= from {
+			if !emptySchedule(w) {
+				out = append(out, w)
+			}
+			continue
+		}
+		if from > w.StartMin {
+			out = append(out, Schedule{StartMin: w.StartMin, EndMin: from})
+		}
+		if to < w.EndMin {
+			out = append(out, Schedule{StartMin: to, EndMin: w.EndMin})
+		}
+	}
+	return out
+}
+
+func emptySchedule(w Schedule) bool {
+	return w.EndMin <= w.StartMin
 }

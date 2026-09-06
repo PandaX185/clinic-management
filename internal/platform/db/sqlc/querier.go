@@ -22,9 +22,13 @@ type Querier interface {
 	// Tenants (global registry) — schema v2
 	CreateClinic(ctx context.Context, arg CreateClinicParams) (Tenant, error)
 	CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error)
+	CreateScheduleException(ctx context.Context, arg CreateScheduleExceptionParams) (ScheduleException, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Removes every weekly window for a doctor, so a PUT can replace the set.
+	DeleteDoctorSchedules(ctx context.Context, doctorProfileID uuid.UUID) error
 	DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, error)
 	DeleteRefreshToken(ctx context.Context, arg DeleteRefreshTokenParams) error
+	DeleteScheduleException(ctx context.Context, id uuid.UUID) error
 	EnsureUserClinicMembership(ctx context.Context, arg EnsureUserClinicMembershipParams) error
 	GetAppointmentByID(ctx context.Context, id uuid.UUID) (Appointment, error)
 	// Ownership-scoped read: the requested appointment is only returned when it
@@ -41,6 +45,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Auth (schema v2: phone-only identity)
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
+	InsertDoctorSchedule(ctx context.Context, arg InsertDoctorScheduleParams) (DoctorSchedule, error)
 	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error
 	// Refresh tokens (hashed storage for validation/revocation)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
@@ -54,11 +59,15 @@ type Querier interface {
 	ListAppointmentsForDoctorDate(ctx context.Context, arg ListAppointmentsForDoctorDateParams) ([]Appointment, error)
 	ListClinics(ctx context.Context) ([]Tenant, error)
 	ListClinicsPaginated(ctx context.Context, arg ListClinicsPaginatedParams) ([]Tenant, error)
+	// Every weekly window for a doctor, active or not, newest-edited last.
+	ListDoctorSchedules(ctx context.Context, doctorProfileID uuid.UUID) ([]DoctorSchedule, error)
 	// Active schedule windows for an active doctor on a given week day (0 = Sunday).
 	ListDoctorSchedulesOnDay(ctx context.Context, arg ListDoctorSchedulesOnDayParams) ([]ListDoctorSchedulesOnDayRow, error)
 	ListProfiles(ctx context.Context) ([]ListProfilesRow, error)
 	ListProfilesByRole(ctx context.Context, name string) ([]Profile, error)
 	ListProfilesByRolePaginated(ctx context.Context, arg ListProfilesByRolePaginatedParams) ([]Profile, error)
+	ListScheduleExceptions(ctx context.Context, doctorProfileID uuid.UUID) ([]ScheduleException, error)
+	ListScheduleExceptionsForDate(ctx context.Context, arg ListScheduleExceptionsForDateParams) ([]ScheduleException, error)
 	ListUserClinicIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]ListUserRolesRow, error)
 	ProfileHasRole(ctx context.Context, arg ProfileHasRoleParams) (bool, error)

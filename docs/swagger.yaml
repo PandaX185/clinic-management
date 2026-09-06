@@ -153,6 +153,29 @@ definitions:
       pagination:
         $ref: '#/definitions/api.pagination'
     type: object
+  api.exceptionInput:
+    properties:
+      date:
+        type: string
+      end_time:
+        type: string
+      reason:
+        type: string
+      start_time:
+        type: string
+      type:
+        enum:
+        - leave
+        - holiday
+        - unavailable
+        - extra_hours
+        type: string
+    required:
+    - date
+    - end_time
+    - start_time
+    - type
+    type: object
   api.pagination:
     properties:
       page:
@@ -197,6 +220,41 @@ definitions:
     required:
     - clinic_id
     - start_time
+    type: object
+  api.scheduleExceptionResponse:
+    properties:
+      date:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      reason:
+        type: string
+      start_time:
+        type: string
+      type:
+        type: string
+    type: object
+  api.scheduleInput:
+    properties:
+      weekly:
+        items:
+          $ref: '#/definitions/api.weeklyHourInput'
+        type: array
+    type: object
+  api.scheduleResponse:
+    properties:
+      doctor_id:
+        type: string
+      exceptions:
+        items:
+          $ref: '#/definitions/api.scheduleExceptionResponse'
+        type: array
+      weekly:
+        items:
+          $ref: '#/definitions/api.weeklyHourResponse'
+        type: array
     type: object
   api.serviceItemResponse:
     properties:
@@ -278,6 +336,36 @@ definitions:
     required:
     - full_name
     - phone
+    type: object
+  api.weeklyHourInput:
+    properties:
+      day_of_week:
+        maximum: 6
+        minimum: 0
+        type: integer
+      end_time:
+        type: string
+      slot_duration:
+        minimum: 0
+        type: integer
+      start_time:
+        type: string
+    required:
+    - end_time
+    - start_time
+    type: object
+  api.weeklyHourResponse:
+    properties:
+      day_of_week:
+        type: integer
+      end_time:
+        type: string
+      is_active:
+        type: boolean
+      slot_duration:
+        type: integer
+      start_time:
+        type: string
     type: object
   apperr.ErrorResponse:
     properties:
@@ -1380,6 +1468,169 @@ paths:
       security:
       - BearerAuth: []
       summary: List doctors
+      tags:
+      - catalog
+  /doctors/{id}/schedule:
+    get:
+      description: Returns the doctor's recurring weekly windows and one-off date
+        exceptions in the active clinic.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Doctor profile id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.scheduleResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get doctor schedule
+      tags:
+      - catalog
+    put:
+      consumes:
+      - application/json
+      description: Replaces the doctor's recurring weekly windows in the active clinic.
+        Admin only.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Doctor profile id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Weekly windows (times as HH:MM)
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.scheduleInput'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Schedule updated
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Replace weekly schedule
+      tags:
+      - catalog
+  /doctors/{id}/schedule/exceptions:
+    post:
+      consumes:
+      - application/json
+      description: 'Registers a one-off date override for the doctor: leave, holiday,
+        unavailable (blocked hours) or extra_hours (adds a window). Admin only.'
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Doctor profile id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Date override
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.exceptionInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.scheduleExceptionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add schedule exception
+      tags:
+      - catalog
+  /doctors/{id}/schedule/exceptions/{exception_id}:
+    delete:
+      description: Deletes a one-off date override. Admin only.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Doctor profile id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Schedule exception id
+        in: path
+        name: exception_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Exception removed
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove schedule exception
       tags:
       - catalog
   /portal/appointments:

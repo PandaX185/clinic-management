@@ -283,3 +283,162 @@ func stringPtr(s string) *string {
 	}
 	return &s
 }
+
+func (r *PostgresRepo) ListDoctorSchedule(ctx context.Context, doctorID uuid.UUID) ([]service.WeeklyHour, error) {
+	var out []service.WeeklyHour
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		rows, err := db.New(tx).ListDoctorSchedules(ctx, doctorID)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		out = make([]service.WeeklyHour, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, service.WeeklyHour{
+				DayOfWeek:    int32(row.DayOfWeek),
+				StartMin:     timeToMin(row.StartTime),
+				EndMin:       timeToMin(row.EndTime),
+				SlotDuration: int(row.SlotDuration),
+				IsActive:     row.IsActive,
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *PostgresRepo) ReplaceWeeklySchedule(ctx context.Context, doctorID uuid.UUID, hours []service.WeeklyHour) error {
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		q := db.New(tx)
+		if err := q.DeleteDoctorSchedules(ctx, doctorID); err != nil {
+			return apperr.Internal(err)
+		}
+		for _, h := range hours {
+			_, err := q.InsertDoctorSchedule(ctx, db.InsertDoctorScheduleParams{
+				DoctorProfileID: doctorID,
+				DayOfWeek:       int16(h.DayOfWeek),
+				StartTime:       minToTime(h.StartMin),
+				EndTime:         minToTime(h.EndMin),
+				SlotDuration:    int32(h.SlotDuration),
+				IsActive:        h.IsActive,
+			})
+			if err != nil {
+				return wrapFK(err, "doctor not found")
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *PostgresRepo) ListScheduleExceptions(ctx context.Context, doctorID uuid.UUID) ([]service.ScheduleException, error) {
+	var out []service.ScheduleException
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		rows, err := db.New(tx).ListScheduleExceptions(ctx, doctorID)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		out = make([]service.ScheduleException, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, scheduleExceptionFromRow(row))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *PostgresRepo) AddScheduleException(ctx context.Context, doctorID uuid.UUID, in service.ScheduleException) (*service.ScheduleException, error) {
+	var out *service.ScheduleException
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		row, err := db.New(tx).CreateScheduleException(ctx, db.CreateScheduleExceptionParams{
+			DoctorProfileID: doctorID,
+			Date:            in.Date,
+			StartTime:       minToTime(in.StartMin),
+			EndTime:         minToTime(in.EndMin),
+			Type:            in.Type,
+			Reason:          textParam(in.Reason),
+		})
+		if err != nil {
+			return wrapFK(err, "doctor not found")
+		}
+		ex := scheduleExceptionFromRow(row)
+		out = &ex
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *PostgresRepo) RemoveScheduleException(ctx context.Context, exceptionID uuid.UUID) error {
+	err := r.scoped.WithSchema(ctx, database.TenantSlugFrom(ctx), func(tx pgx.Tx) error {
+		if err := db.New(tx).DeleteScheduleException(ctx, exceptionID); err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func scheduleExceptionFromRow(row db.ScheduleException) service.ScheduleException {
+	return service.ScheduleException{
+		ID:       row.ID,
+		Date:     row.Date,
+		Type:     row.Type,
+		StartMin: timeToMin(row.StartTime),
+		EndMin:   timeToMin(row.EndTime),
+		Reason:   textValue(row.Reason),
+	}
+}
+
+// timeToMin converts a pgtime.Time (microseconds since midnight) to minutes.
+func timeToMin(t pgtype.Time) int {
+	if !t.Valid {
+		return 0
+	}
+	return int(t.Microseconds / 1_000_000 / 60)
+}
+
+// minToTime converts minutes since midnight to a pgtime.Time.
+func minToTime(m int) pgtype.Time {
+	if m < 0 {
+		return pgtype.Time{}
+	}
+	return pgtype.Time{Microseconds: int64(m) * 60_000_000, Valid: true}
+}
+
+func textParam(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s, Valid: true}
+}
+
+func textValue(t pgtype.Text) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.String
+}
+
+// wrapFK translates foreign-key violations into a clean 404 so callers don't
+// see raw constraint errors when a doctor id does not exist in this clinic.
+func wrapFK(err error, notFoundMsg string) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		return apperr.NotFound(notFoundMsg)
+	}
+	return apperr.Internal(err)
+}

@@ -179,6 +179,62 @@ WHERE s.doctor_profile_id = $1
   AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = s.doctor_profile_id AND p.status = 'active')
 ORDER BY s.start_time;
 
+-- name: ListDoctorSchedules :many
+-- Every weekly window for a doctor, active or not, newest-edited last.
+SELECT id, doctor_profile_id, day_of_week, start_time, end_time, slot_duration, is_active, created_at, updated_at
+FROM doctor_schedules
+WHERE doctor_profile_id = $1
+ORDER BY day_of_week, start_time;
+
+-- name: DeleteDoctorSchedules :exec
+-- Removes every weekly window for a doctor, so a PUT can replace the set.
+DELETE FROM doctor_schedules WHERE doctor_profile_id = $1;
+
+-- name: InsertDoctorSchedule :one
+INSERT INTO doctor_schedules (doctor_profile_id, day_of_week, start_time, end_time, slot_duration, is_active)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, doctor_profile_id, day_of_week, start_time, end_time, slot_duration, is_active, created_at, updated_at;
+
+-- Schedule exceptions ----------------------------------------------------
+
+CREATE TABLE schedule_exceptions (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    doctor_profile_id UUID     NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    date              DATE     NOT NULL,
+    start_time        TIME,
+    end_time          TIME,
+    type              VARCHAR(20) NOT NULL
+        CHECK (type IN ('leave', 'holiday', 'unavailable', 'extra_hours')),
+    reason            TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT valid_exception_hours CHECK (
+        type = 'extra_hours' OR (start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time)
+    )
+);
+
+CREATE INDEX idx_schedule_exceptions_doctor_date ON schedule_exceptions(doctor_profile_id, date);
+
+-- name: ListScheduleExceptions :many
+SELECT id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at
+FROM schedule_exceptions
+WHERE doctor_profile_id = $1
+ORDER BY date, start_time;
+
+-- name: ListScheduleExceptionsForDate :many
+SELECT id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at
+FROM schedule_exceptions
+WHERE doctor_profile_id = $1 AND date = $2
+ORDER BY start_time;
+
+-- name: CreateScheduleException :one
+INSERT INTO schedule_exceptions (doctor_profile_id, date, start_time, end_time, type, reason)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at;
+
+-- name: DeleteScheduleException :exec
+DELETE FROM schedule_exceptions WHERE id = $1;
+
 -- name: CreateAppointmentType :one
 INSERT INTO appointment_types (name, duration_minutes, price, color, icon)
 VALUES ($1, $2, $3, $4, $5)

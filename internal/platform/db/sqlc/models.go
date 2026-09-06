@@ -109,6 +109,18 @@ type RolePermission struct {
 	PermissionID uuid.UUID
 }
 
+type ScheduleException struct {
+	ID              uuid.UUID
+	DoctorProfileID uuid.UUID
+	Date            time.Time
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
+	Type            string
+	Reason          pgtype.Text
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type Tenant struct {
 	ID          uuid.UUID
 	Name        string

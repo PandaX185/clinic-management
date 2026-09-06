@@ -54,6 +54,16 @@ type Schedule struct {
 	EndMin    int
 }
 
+// Exception is a one-off date override for a doctor. Type is one of leave,
+// holiday, unavailable (blocked hours) or extra_hours (adds a window); times
+// are minutes past midnight on the exception's date.
+type Exception struct {
+	Date     time.Time
+	Type     string
+	StartMin int
+	EndMin   int
+}
+
 // Appointment is a booked slot used to compute busy intervals.
 type Appointment struct {
 	Start time.Time
@@ -77,6 +87,7 @@ type Repository interface {
 	ListClinicDoctors(ctx context.Context, clinicID uuid.UUID, offset, limit int) ([]Doctor, int64, error)
 	FindDoctor(ctx context.Context, doctorID uuid.UUID) (*Doctor, error)
 	ListDoctorSchedules(ctx context.Context, clinicID uuid.UUID, doctorID uuid.UUID, date time.Time) ([]Schedule, error)
+	ListScheduleDayExceptions(ctx context.Context, clinicID uuid.UUID, doctorID uuid.UUID, date time.Time) ([]Exception, error)
 	ListDoctorAppointments(ctx context.Context, clinicID uuid.UUID, doctorID uuid.UUID, from, to time.Time) ([]Appointment, error)
 	GetAppointmentType(ctx context.Context, clinicID uuid.UUID, typeID uuid.UUID) (*ServiceItem, error)
 }

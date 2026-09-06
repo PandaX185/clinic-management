@@ -199,6 +199,7 @@ type fakePublicRepo struct {
 	doctorTotal int64
 	doctor      *service.Doctor
 	schedules   []service.Schedule
+	exceptions  []service.Exception
 	appts       []service.Appointment
 	apptType    *service.ServiceItem
 	err         error
@@ -240,6 +241,10 @@ func (f *fakePublicRepo) ListDoctorSchedules(_ context.Context, _, _ uuid.UUID, 
 	return f.schedules, f.failIf(nil)
 }
 
+func (f *fakePublicRepo) ListScheduleDayExceptions(_ context.Context, _, _ uuid.UUID, _ time.Time) ([]service.Exception, error) {
+	return f.exceptions, f.failIf(nil)
+}
+
 func (f *fakePublicRepo) ListDoctorAppointments(_ context.Context, _, _ uuid.UUID, _, _ time.Time) ([]service.Appointment, error) {
 	return f.appts, f.failIf(nil)
 }
@@ -249,4 +254,43 @@ func (f *fakePublicRepo) GetAppointmentType(_ context.Context, _ uuid.UUID, _ uu
 		return nil, errors.New("type not found")
 	}
 	return f.apptType, f.failIf(nil)
+}
+
+func TestGetAvailableSlots_FoldsExceptionsIntoWindows(t *testing.T) {
+	day := time.Date(2027, 7, 12, 0, 0, 0, 0, time.UTC) // Monday
+	clinicID, doctorID := uuid.New(), uuid.New()
+
+	fake := &fakePublicRepo{
+		services: []service.ServiceItem{{ID: uuid.New(), DurationMin: 60}},
+		schedules: []service.Schedule{
+			{DayOfWeek: 1, StartMin: 9 * 60, EndMin: 17 * 60}, // 09:00-17:00
+		},
+		exceptions: []service.Exception{
+			{Type: "holiday", StartMin: 9 * 60, EndMin: 11 * 60},      // blocks 09:00-11:00
+			{Type: "leave", StartMin: 12 * 60, EndMin: 13 * 60},       // blocks 12:00-13:00
+			{Type: "extra_hours", StartMin: 18 * 60, EndMin: 19 * 60}, // adds 18:00-19:00
+		},
+	}
+	svc := service.NewService(fake)
+
+	slots, err := svc.GetAvailableSlots(context.Background(), clinicID, service.SlotQuery{
+		DoctorID: doctorID,
+		Date:     day,
+	})
+	if err != nil {
+		t.Fatalf("GetAvailableSlots: %v", err)
+	}
+
+	// Remaining starts: 11:00, then 13:00-16:00, plus 18:00.
+	wantStarts := []time.Duration{
+		11 * time.Hour, 13 * time.Hour, 14 * time.Hour, 15 * time.Hour, 16 * time.Hour, 18 * time.Hour,
+	}
+	if len(slots) != len(wantStarts) {
+		t.Fatalf("want %d slots, got %d: %+v", len(wantStarts), len(slots), slots)
+	}
+	for i, d := range wantStarts {
+		if want := day.Add(d); !slots[i].Start.Equal(want) {
+			t.Errorf("slot %d start = %v, want %v", i, slots[i].Start, want)
+		}
+	}
 }

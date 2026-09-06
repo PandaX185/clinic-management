@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -27,6 +28,14 @@ func (h *Handler) RegisterRoutes(protected *gin.RouterGroup) {
 		g.POST("", idapi.RequireRoles("admin"), h.CreateProfile)
 	}
 	protected.GET("/doctors", h.ListDoctors)
+
+	dg := protected.Group("/doctors/:id")
+	{
+		dg.GET("/schedule", h.GetSchedule)
+		dg.PUT("/schedule", idapi.RequireRoles("admin"), h.SetSchedule)
+		dg.POST("/schedule/exceptions", idapi.RequireRoles("admin"), h.AddException)
+		dg.DELETE("/schedule/exceptions/:exception_id", idapi.RequireRoles("admin"), h.RemoveException)
+	}
 
 	tg := protected.Group("/appointment-types")
 	{
@@ -194,4 +203,142 @@ func (h *Handler) UpdateType(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, toTypeResponse(t))
+}
+
+// @Summary Get doctor schedule
+// @Description Returns the doctor's recurring weekly windows and one-off date exceptions in the active clinic.
+// @Tags catalog
+// @Produce json
+// @Security BearerAuth
+// @Param X-Tenant-ID header string true "Tenant id"
+// @Param id path string true "Doctor profile id"
+// @Success 200 {object} scheduleResponse
+// @Failure 403 {object} apperr.ErrorResponse
+// @Failure 500 {object} apperr.ErrorResponse
+// @Router /doctors/{id}/schedule [get]
+func (h *Handler) GetSchedule(c *gin.Context) {
+	doctorID, err := httpctx.ParseUUIDParam(c, "id")
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	s, err := h.svc.GetDoctorSchedule(c.Request.Context(), doctorID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toScheduleResponse(doctorID, s))
+}
+
+// @Summary Replace weekly schedule
+// @Description Replaces the doctor's recurring weekly windows in the active clinic. Admin only.
+// @Tags catalog
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param X-Tenant-ID header string true "Tenant id"
+// @Param id path string true "Doctor profile id"
+// @Param input body scheduleInput true "Weekly windows (times as HH:MM)"
+// @Success 204 "Schedule updated"
+// @Failure 400 {object} apperr.ErrorResponse
+// @Failure 403 {object} apperr.ErrorResponse
+// @Failure 404 {object} apperr.ErrorResponse
+// @Router /doctors/{id}/schedule [put]
+func (h *Handler) SetSchedule(c *gin.Context) {
+	doctorID, err := httpctx.ParseUUIDParam(c, "id")
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	var in scheduleInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.Invalid("invalid request body"))
+		return
+	}
+	hours, err := weeklyHours(in.Weekly)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if err := h.svc.SetWeeklySchedule(c.Request.Context(), doctorID, hours); err != nil {
+		c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// @Summary Add schedule exception
+// @Description Registers a one-off date override for the doctor: leave, holiday, unavailable (blocked hours) or extra_hours (adds a window). Admin only.
+// @Tags catalog
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param X-Tenant-ID header string true "Tenant id"
+// @Param id path string true "Doctor profile id"
+// @Param input body exceptionInput true "Date override"
+// @Success 201 {object} scheduleExceptionResponse
+// @Failure 400 {object} apperr.ErrorResponse
+// @Failure 403 {object} apperr.ErrorResponse
+// @Failure 404 {object} apperr.ErrorResponse
+// @Router /doctors/{id}/schedule/exceptions [post]
+func (h *Handler) AddException(c *gin.Context) {
+	doctorID, err := httpctx.ParseUUIDParam(c, "id")
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	var in exceptionInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.Invalid("invalid request body"))
+		return
+	}
+	date, err := time.Parse("2006-01-02", in.Date)
+	if err != nil {
+		c.Error(apperr.Invalid("invalid date"))
+		return
+	}
+	ex, err := h.svc.CreateScheduleException(c.Request.Context(), doctorID, service.ScheduleException{
+		Date:     date,
+		Type:     in.Type,
+		StartMin: minutesOf(in.StartTime),
+		EndMin:   minutesOf(in.EndTime),
+		Reason:   in.Reason,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, scheduleExceptionResponse{
+		ID:        ex.ID.String(),
+		Date:      ex.Date.Format("2006-01-02"),
+		Type:      ex.Type,
+		StartTime: hhmm(ex.StartMin),
+		EndTime:   hhmm(ex.EndMin),
+		Reason:    ex.Reason,
+	})
+}
+
+// @Summary Remove schedule exception
+// @Description Deletes a one-off date override. Admin only.
+// @Tags catalog
+// @Produce json
+// @Security BearerAuth
+// @Param X-Tenant-ID header string true "Tenant id"
+// @Param id path string true "Doctor profile id"
+// @Param exception_id path string true "Schedule exception id"
+// @Success 204 "Exception removed"
+// @Failure 403 {object} apperr.ErrorResponse
+// @Failure 500 {object} apperr.ErrorResponse
+// @Router /doctors/{id}/schedule/exceptions/{exception_id} [delete]
+func (h *Handler) RemoveException(c *gin.Context) {
+	exceptionID, err := httpctx.ParseUUIDParam(c, "exception_id")
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if err := h.svc.DeleteScheduleException(c.Request.Context(), exceptionID); err != nil {
+		c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

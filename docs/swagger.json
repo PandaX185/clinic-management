@@ -1367,6 +1367,253 @@
                 }
             }
         },
+        "/doctors/{id}/schedule": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the doctor's recurring weekly windows and one-off date exceptions in the active clinic.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Get doctor schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Doctor profile id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.scheduleResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Replaces the doctor's recurring weekly windows in the active clinic. Admin only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Replace weekly schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Doctor profile id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Weekly windows (times as HH:MM)",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.scheduleInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Schedule updated"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/doctors/{id}/schedule/exceptions": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registers a one-off date override for the doctor: leave, holiday, unavailable (blocked hours) or extra_hours (adds a window). Admin only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Add schedule exception",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Doctor profile id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Date override",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.exceptionInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.scheduleExceptionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/doctors/{id}/schedule/exceptions/{exception_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a one-off date override. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Remove schedule exception",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Doctor profile id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Schedule exception id",
+                        "name": "exception_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Exception removed"
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/portal/appointments": {
             "get": {
                 "security": [
@@ -2073,6 +2320,38 @@
                 }
             }
         },
+        "api.exceptionInput": {
+            "type": "object",
+            "required": [
+                "date",
+                "end_time",
+                "start_time",
+                "type"
+            ],
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "leave",
+                        "holiday",
+                        "unavailable",
+                        "extra_hours"
+                    ]
+                }
+            }
+        },
         "api.pagination": {
             "type": "object",
             "properties": {
@@ -2139,6 +2418,60 @@
                 },
                 "start_time": {
                     "type": "string"
+                }
+            }
+        },
+        "api.scheduleExceptionResponse": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.scheduleInput": {
+            "type": "object",
+            "properties": {
+                "weekly": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.weeklyHourInput"
+                    }
+                }
+            }
+        },
+        "api.scheduleResponse": {
+            "type": "object",
+            "properties": {
+                "doctor_id": {
+                    "type": "string"
+                },
+                "exceptions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.scheduleExceptionResponse"
+                    }
+                },
+                "weekly": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.weeklyHourResponse"
+                    }
                 }
             }
         },
@@ -2261,6 +2594,50 @@
                     "maxLength": 255
                 },
                 "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.weeklyHourInput": {
+            "type": "object",
+            "required": [
+                "end_time",
+                "start_time"
+            ],
+            "properties": {
+                "day_of_week": {
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 0
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "slot_duration": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.weeklyHourResponse": {
+            "type": "object",
+            "properties": {
+                "day_of_week": {
+                    "type": "integer"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "slot_duration": {
+                    "type": "integer"
+                },
+                "start_time": {
                     "type": "string"
                 }
             }

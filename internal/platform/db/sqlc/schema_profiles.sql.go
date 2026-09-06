@@ -107,6 +107,55 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 	return i, err
 }
 
+const createScheduleException = `-- name: CreateScheduleException :one
+INSERT INTO schedule_exceptions (doctor_profile_id, date, start_time, end_time, type, reason)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at
+`
+
+type CreateScheduleExceptionParams struct {
+	DoctorProfileID uuid.UUID
+	Date            time.Time
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
+	Type            string
+	Reason          pgtype.Text
+}
+
+func (q *Queries) CreateScheduleException(ctx context.Context, arg CreateScheduleExceptionParams) (ScheduleException, error) {
+	row := q.db.QueryRow(ctx, createScheduleException,
+		arg.DoctorProfileID,
+		arg.Date,
+		arg.StartTime,
+		arg.EndTime,
+		arg.Type,
+		arg.Reason,
+	)
+	var i ScheduleException
+	err := row.Scan(
+		&i.ID,
+		&i.DoctorProfileID,
+		&i.Date,
+		&i.StartTime,
+		&i.EndTime,
+		&i.Type,
+		&i.Reason,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteDoctorSchedules = `-- name: DeleteDoctorSchedules :exec
+DELETE FROM doctor_schedules WHERE doctor_profile_id = $1
+`
+
+// Removes every weekly window for a doctor, so a PUT can replace the set.
+func (q *Queries) DeleteDoctorSchedules(ctx context.Context, doctorProfileID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteDoctorSchedules, doctorProfileID)
+	return err
+}
+
 const deleteExpiredIdempotencyKeys = `-- name: DeleteExpiredIdempotencyKeys :execrows
 DELETE FROM idempotency_keys WHERE expires_at < now()
 `
@@ -117,6 +166,15 @@ func (q *Queries) DeleteExpiredIdempotencyKeys(ctx context.Context) (int64, erro
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteScheduleException = `-- name: DeleteScheduleException :exec
+DELETE FROM schedule_exceptions WHERE id = $1
+`
+
+func (q *Queries) DeleteScheduleException(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteScheduleException, id)
+	return err
 }
 
 const getAppointmentTypeByID = `-- name: GetAppointmentTypeByID :one
@@ -213,6 +271,45 @@ func (q *Queries) GetRoleByName(ctx context.Context, name string) (Role, error) 
 	return i, err
 }
 
+const insertDoctorSchedule = `-- name: InsertDoctorSchedule :one
+INSERT INTO doctor_schedules (doctor_profile_id, day_of_week, start_time, end_time, slot_duration, is_active)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, doctor_profile_id, day_of_week, start_time, end_time, slot_duration, is_active, created_at, updated_at
+`
+
+type InsertDoctorScheduleParams struct {
+	DoctorProfileID uuid.UUID
+	DayOfWeek       int16
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
+	SlotDuration    int32
+	IsActive        bool
+}
+
+func (q *Queries) InsertDoctorSchedule(ctx context.Context, arg InsertDoctorScheduleParams) (DoctorSchedule, error) {
+	row := q.db.QueryRow(ctx, insertDoctorSchedule,
+		arg.DoctorProfileID,
+		arg.DayOfWeek,
+		arg.StartTime,
+		arg.EndTime,
+		arg.SlotDuration,
+		arg.IsActive,
+	)
+	var i DoctorSchedule
+	err := row.Scan(
+		&i.ID,
+		&i.DoctorProfileID,
+		&i.DayOfWeek,
+		&i.StartTime,
+		&i.EndTime,
+		&i.SlotDuration,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertIdempotentResponse = `-- name: InsertIdempotentResponse :exec
 INSERT INTO idempotency_keys (key, endpoint, user_id, request_hash, response_status, response_body, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -261,6 +358,44 @@ func (q *Queries) ListAppointmentTypes(ctx context.Context) ([]AppointmentType, 
 			&i.Price,
 			&i.Color,
 			&i.Icon,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDoctorSchedules = `-- name: ListDoctorSchedules :many
+SELECT id, doctor_profile_id, day_of_week, start_time, end_time, slot_duration, is_active, created_at, updated_at
+FROM doctor_schedules
+WHERE doctor_profile_id = $1
+ORDER BY day_of_week, start_time
+`
+
+// Every weekly window for a doctor, active or not, newest-edited last.
+func (q *Queries) ListDoctorSchedules(ctx context.Context, doctorProfileID uuid.UUID) ([]DoctorSchedule, error) {
+	rows, err := q.db.Query(ctx, listDoctorSchedules, doctorProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DoctorSchedule{}
+	for rows.Next() {
+		var i DoctorSchedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.DoctorProfileID,
+			&i.DayOfWeek,
+			&i.StartTime,
+			&i.EndTime,
+			&i.SlotDuration,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -463,6 +598,85 @@ func (q *Queries) ListProfilesByRolePaginated(ctx context.Context, arg ListProfi
 			&i.UserID,
 			&i.DisplayName,
 			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduleExceptions = `-- name: ListScheduleExceptions :many
+SELECT id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at
+FROM schedule_exceptions
+WHERE doctor_profile_id = $1
+ORDER BY date, start_time
+`
+
+func (q *Queries) ListScheduleExceptions(ctx context.Context, doctorProfileID uuid.UUID) ([]ScheduleException, error) {
+	rows, err := q.db.Query(ctx, listScheduleExceptions, doctorProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScheduleException{}
+	for rows.Next() {
+		var i ScheduleException
+		if err := rows.Scan(
+			&i.ID,
+			&i.DoctorProfileID,
+			&i.Date,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Type,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduleExceptionsForDate = `-- name: ListScheduleExceptionsForDate :many
+SELECT id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at
+FROM schedule_exceptions
+WHERE doctor_profile_id = $1 AND date = $2
+ORDER BY start_time
+`
+
+type ListScheduleExceptionsForDateParams struct {
+	DoctorProfileID uuid.UUID
+	Date            time.Time
+}
+
+func (q *Queries) ListScheduleExceptionsForDate(ctx context.Context, arg ListScheduleExceptionsForDateParams) ([]ScheduleException, error) {
+	rows, err := q.db.Query(ctx, listScheduleExceptionsForDate, arg.DoctorProfileID, arg.Date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ScheduleException{}
+	for rows.Next() {
+		var i ScheduleException
+		if err := rows.Scan(
+			&i.ID,
+			&i.DoctorProfileID,
+			&i.Date,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Type,
+			&i.Reason,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

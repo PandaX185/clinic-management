@@ -41,6 +41,17 @@ definitions:
     - clinic_id
     - reason
     type: object
+  api.checkInInput:
+    properties:
+      appointment_id:
+        type: string
+      priority:
+        type: integer
+      profile_id:
+        type: string
+    required:
+    - profile_id
+    type: object
   api.clinicDetailResponse:
     properties:
       address:
@@ -153,6 +164,33 @@ definitions:
       pagination:
         $ref: '#/definitions/api.pagination'
     type: object
+  api.entryResponse:
+    properties:
+      active_total:
+        type: integer
+      appointment_id:
+        type: string
+      called_at:
+        type: string
+      checked_in_at:
+        type: string
+      completed_at:
+        type: string
+      id:
+        type: string
+      patient_name:
+        type: string
+      position:
+        type: integer
+      priority:
+        type: integer
+      profile_id:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
   api.exceptionInput:
     properties:
       date:
@@ -175,6 +213,20 @@ definitions:
     - end_time
     - start_time
     - type
+    type: object
+  api.joinQueueInput:
+    properties:
+      clinic_id:
+        type: string
+    required:
+    - clinic_id
+    type: object
+  api.myQueueResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.queueEntryResponse'
+        type: array
     type: object
   api.pagination:
     properties:
@@ -208,6 +260,48 @@ definitions:
         items:
           $ref: '#/definitions/api.profileResponse'
         type: array
+    type: object
+  api.queueEntryResponse:
+    properties:
+      active_total:
+        type: integer
+      appointment_id:
+        type: string
+      called_at:
+        type: string
+      checked_in_at:
+        type: string
+      clinic_id:
+        type: string
+      clinic_name:
+        type: string
+      completed_at:
+        type: string
+      id:
+        type: string
+      position:
+        type: integer
+      priority:
+        type: integer
+      profile_id:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
+  api.queueListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.entryResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
     type: object
   api.rescheduleInput:
     properties:
@@ -284,6 +378,20 @@ definitions:
         items:
           $ref: '#/definitions/api.slotResponse'
         type: array
+    type: object
+  api.statusInput:
+    properties:
+      status:
+        enum:
+        - waiting
+        - called
+        - in_progress
+        - completed
+        - skipped
+        - cancelled
+        type: string
+    required:
+    - status
     type: object
   api.typeInput:
     properties:
@@ -1865,6 +1973,62 @@ paths:
       summary: Update my profile
       tags:
       - portal
+  /portal/queue:
+    get:
+      description: Returns the patient's queue entries across every clinic they attend,
+        with their current position where still in the line.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.myQueueResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List my queue entries
+      tags:
+      - portal
+    post:
+      consumes:
+      - application/json
+      description: Checks the patient into a clinic's queue. A patient profile is
+        provisioned on first use.
+      parameters:
+      - description: Clinic to check in at
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.joinQueueInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.queueEntryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Join a clinic queue
+      tags:
+      - portal
   /profiles:
     get:
       description: Returns every person registered in the active clinic (X-Tenant-ID),
@@ -1940,6 +2104,140 @@ paths:
       summary: Register a profile
       tags:
       - catalog
+  /queue:
+    get:
+      description: Returns the clinic's current line (waiting/called/in_progress)
+        with derived positions, ordered by priority then check-in time.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Only entries checked in on/after this date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - description: Page offset
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.queueListResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List the active queue
+      tags:
+      - queue
+    post:
+      consumes:
+      - application/json
+      description: Adds a patient to the clinic queue. A patient may also check in
+        from the portal; this endpoint is for staff over-the-counter walk-ins.
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Patient check-in
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.checkInInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.entryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Check a patient in
+      tags:
+      - queue
+  /queue/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: 'Moves an entry through the queue lifecycle: waiting -> called
+        -> in_progress -> completed; waiting/called may also be skipped or cancelled.'
+      parameters:
+      - description: Tenant id
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Queue entry id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Target status
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.statusInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.entryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a queue entry
+      tags:
+      - queue
 securityDefinitions:
   BearerAuth:
     description: Authenticate as `Bearer <access_token>`.

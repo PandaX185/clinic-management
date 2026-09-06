@@ -189,6 +189,78 @@ func fromAppointmentRow(row db.Appointment) portalsvc.Appointment {
 	}
 }
 
+// ListMyQueues fans out to every active clinic, collecting the patient's
+// queue entries wherever they have a profile. Positions are computed for
+// entries still in the line. Sorted by check-in time, newest first.
+func (r *PostgresRepository) ListMyQueues(ctx context.Context, userID uuid.UUID) ([]portalsvc.QueueEntry, error) {
+	clinics, err := db.New(r.pool).ListClinics(ctx)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	existing, err := database.ExistingTenantSchemas(ctx, r.pool)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+
+	out := make([]portalsvc.QueueEntry, 0, 8)
+	for _, clinic := range clinics {
+		if _, ok := existing[database.SchemaName(clinic.Slug)]; !ok {
+			continue
+		}
+		err := r.scoped.WithSchema(ctx, clinic.Slug, func(tx pgx.Tx) error {
+			q := db.New(tx)
+			profile, err := q.GetProfileByUserID(ctx, userID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil // no profile in this clinic -> no queue entries here
+			}
+			if err != nil {
+				return err
+			}
+			rows, err := q.ListQueueEntriesForProfile(ctx, profile.ID)
+			if err != nil {
+				return err
+			}
+			for _, row := range rows {
+				e := portalsvc.QueueEntry{
+					ID:            row.ID,
+					ProfileID:     row.ProfileID,
+					AppointmentID: row.AppointmentID,
+					Status:        row.Status,
+					Priority:      row.Priority,
+					CheckedInAt:   row.CheckedInAt,
+					CalledAt:      row.CalledAt,
+					StartedAt:     row.StartedAt,
+					CompletedAt:   row.CompletedAt,
+					ClinicID:      clinic.ID,
+					ClinicName:    clinic.Name,
+				}
+				if active(e.Status) {
+					pos, err := q.GetQueueEntryPosition(ctx, db.GetQueueEntryPositionParams{
+						Priority:    row.Priority,
+						CheckedInAt: row.CheckedInAt,
+					})
+					if err != nil {
+						return err
+					}
+					e.Position = int64(pos)
+				}
+				out = append(out, e)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, apperr.Internal(err)
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].CheckedInAt.After(out[j].CheckedInAt) })
+	return out, nil
+}
+
+func active(status string) bool {
+	return status == "waiting" || status == "called" || status == "in_progress"
+}
+
 func textPtr(t pgtype.Text) *string {
 	if !t.Valid {
 		return nil

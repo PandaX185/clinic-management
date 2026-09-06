@@ -13,6 +13,7 @@ import (
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
+	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
 	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
 )
 
@@ -69,6 +70,24 @@ type RescheduleInput struct {
 	DurationMinutes int
 }
 
+// QueueEntry is one of the patient's check-ins in a clinic's queue. The
+// clinic is explicit because a patient can be in several clinics.
+type QueueEntry struct {
+	ID            uuid.UUID
+	ProfileID     uuid.UUID
+	AppointmentID *uuid.UUID
+	Status        string
+	Priority      int32
+	CheckedInAt   time.Time
+	CalledAt      *time.Time
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
+	Position      int64
+	ActiveTotal   int64
+	ClinicID      uuid.UUID
+	ClinicName    string
+}
+
 // Repository is the persistence port for the patient portal. Everything
 // tenant-specific (profiles, appointments) is resolved per clinic schema.
 type Repository interface {
@@ -78,16 +97,18 @@ type Repository interface {
 	ListAppointments(ctx context.Context, userID uuid.UUID) ([]Appointment, error)
 	GetAppointment(ctx context.Context, userID uuid.UUID, apptID, clinicID uuid.UUID) (*Appointment, error)
 	EnsurePatientProfile(ctx context.Context, slug string, userID uuid.UUID) (uuid.UUID, error)
+	ListMyQueues(ctx context.Context, userID uuid.UUID) ([]QueueEntry, error)
 }
 
 // Service is the patient portal use case surface.
 type Service struct {
-	repo    Repository
-	apptSvc *schedsvc.Service
+	repo     Repository
+	apptSvc  *schedsvc.Service
+	queueSvc *queuesvc.Service
 }
 
-func NewService(repo Repository, apptSvc *schedsvc.Service) *Service {
-	return &Service{repo: repo, apptSvc: apptSvc}
+func NewService(repo Repository, apptSvc *schedsvc.Service, queueSvc *queuesvc.Service) *Service {
+	return &Service{repo: repo, apptSvc: apptSvc, queueSvc: queueSvc}
 }
 
 func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
@@ -191,6 +212,43 @@ func (s *Service) Reschedule(ctx context.Context, userID uuid.UUID, clinicID, ap
 func patientAccess(userID uuid.UUID) schedsvc.AccessContext {
 	uid := userID
 	return schedsvc.AccessContext{UserID: userID, Roles: []string{"patient"}, ActorID: &uid}
+}
+
+// MyQueue returns the patient's queue entries across every clinic they attend.
+func (s *Service) MyQueue(ctx context.Context, userID uuid.UUID) ([]QueueEntry, error) {
+	return s.repo.ListMyQueues(ctx, userID)
+}
+
+// JoinQueue checks the patient into a clinic's queue. A profile is provisioned
+// in the clinic on first use, mirroring appointment booking.
+func (s *Service) JoinQueue(ctx context.Context, userID uuid.UUID, clinicID uuid.UUID) (*QueueEntry, error) {
+	clinic, err := s.repo.GetClinic(ctx, clinicID)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := s.repo.EnsurePatientProfile(ctx, clinic.Slug, userID)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := s.queueSvc.CheckIn(database.WithTenantSlug(ctx, clinic.Slug), profileID, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+	return &QueueEntry{
+		ID:            entry.ID,
+		ProfileID:     entry.ProfileID,
+		AppointmentID: entry.AppointmentID,
+		Status:        entry.Status,
+		Priority:      entry.Priority,
+		CheckedInAt:   entry.CheckedInAt,
+		CalledAt:      entry.CalledAt,
+		StartedAt:     entry.StartedAt,
+		CompletedAt:   entry.CompletedAt,
+		Position:      entry.Position,
+		ActiveTotal:   entry.ActiveTotal,
+		ClinicID:      clinic.ID,
+		ClinicName:    clinic.Name,
+	}, nil
 }
 
 func toPatientAppointment(a *schedsvc.Appointment, clinic *ClinicRef) *Appointment {

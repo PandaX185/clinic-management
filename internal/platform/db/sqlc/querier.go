@@ -22,6 +22,7 @@ type Querier interface {
 	// Tenants (global registry) — schema v2
 	CreateClinic(ctx context.Context, arg CreateClinicParams) (Tenant, error)
 	CreateProfile(ctx context.Context, arg CreateProfileParams) (Profile, error)
+	CreateQueueEntry(ctx context.Context, arg CreateQueueEntryParams) (QueueEntry, error)
 	CreateScheduleException(ctx context.Context, arg CreateScheduleExceptionParams) (ScheduleException, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	// Removes every weekly window for a doctor, so a PUT can replace the set.
@@ -40,6 +41,8 @@ type Querier interface {
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
 	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
 	GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
+	GetQueueEntryByID(ctx context.Context, id uuid.UUID) (GetQueueEntryByIDRow, error)
+	GetQueueEntryPosition(ctx context.Context, arg GetQueueEntryPositionParams) (int32, error)
 	GetRoleByName(ctx context.Context, name string) (Role, error)
 	GetUserAdminFlag(ctx context.Context, id uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
@@ -49,6 +52,7 @@ type Querier interface {
 	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error
 	// Refresh tokens (hashed storage for validation/revocation)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	ListActiveQueue(ctx context.Context, arg ListActiveQueueParams) ([]ListActiveQueueRow, error)
 	ListAppointmentTypes(ctx context.Context) ([]AppointmentType, error)
 	ListAppointments(ctx context.Context, arg ListAppointmentsParams) ([]Appointment, error)
 	// Appointments of a single patient across a clinic: joins through the
@@ -66,6 +70,7 @@ type Querier interface {
 	ListProfiles(ctx context.Context) ([]ListProfilesRow, error)
 	ListProfilesByRole(ctx context.Context, name string) ([]Profile, error)
 	ListProfilesByRolePaginated(ctx context.Context, arg ListProfilesByRolePaginatedParams) ([]Profile, error)
+	ListQueueEntriesForProfile(ctx context.Context, profileID uuid.UUID) ([]ListQueueEntriesForProfileRow, error)
 	ListScheduleExceptions(ctx context.Context, doctorProfileID uuid.UUID) ([]ScheduleException, error)
 	ListScheduleExceptionsForDate(ctx context.Context, arg ListScheduleExceptionsForDateParams) ([]ScheduleException, error)
 	ListUserClinicIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
@@ -75,6 +80,7 @@ type Querier interface {
 	SetClinicActive(ctx context.Context, arg SetClinicActiveParams) error
 	TransitionAppointmentStatus(ctx context.Context, arg TransitionAppointmentStatusParams) (Appointment, error)
 	UpdateAppointmentType(ctx context.Context, arg UpdateAppointmentTypeParams) (AppointmentType, error)
+	UpdateQueueEntryStatus(ctx context.Context, arg UpdateQueueEntryStatusParams) (QueueEntry, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
 	UpsertPatientProfile(ctx context.Context, arg UpsertPatientProfileParams) (Profile, error)

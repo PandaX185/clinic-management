@@ -287,6 +287,55 @@ CREATE TABLE queue_entries (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- name: CreateQueueEntry :one
+INSERT INTO queue_entries (profile_id, appointment_id, priority, checked_in_at)
+VALUES ($1, $2, $3, now())
+RETURNING *;
+
+-- name: GetQueueEntryByID :one
+SELECT qe.*, p.display_name AS patient_name
+FROM queue_entries qe
+JOIN profiles p ON p.id = qe.profile_id
+WHERE qe.id = $1;
+
+-- name: UpdateQueueEntryStatus :one
+UPDATE queue_entries
+SET status       = $2::text,
+    called_at    = CASE WHEN $2::text = 'called'      THEN COALESCE(called_at, now())   ELSE called_at END,
+    started_at   = CASE WHEN $2::text = 'in_progress' THEN COALESCE(started_at, now())   ELSE started_at END,
+    completed_at = CASE WHEN $2::text = 'completed'   THEN COALESCE(completed_at, now()) ELSE completed_at END,
+    updated_at   = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: ListActiveQueue :many
+WITH active AS (
+    SELECT qe.*, p.display_name AS patient_name
+    FROM queue_entries qe
+    JOIN profiles p ON p.id = qe.profile_id
+    WHERE qe.status IN ('waiting', 'called', 'in_progress')
+)
+SELECT a.*,
+       ROW_NUMBER() OVER (ORDER BY a.priority DESC, a.checked_in_at ASC)::bigint AS position,
+       (SELECT count(*)::bigint FROM active) AS active_total
+FROM active a
+WHERE (sqlc.narg('from')::timestamptz IS NULL OR a.checked_in_at >= sqlc.narg('from')::timestamptz)
+ORDER BY a.priority DESC, a.checked_in_at ASC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: ListQueueEntriesForProfile :many
+SELECT qe.*, p.display_name AS patient_name
+FROM queue_entries qe
+JOIN profiles p ON p.id = qe.profile_id
+WHERE qe.profile_id = $1
+ORDER BY qe.checked_in_at DESC;
+
+-- name: GetQueueEntryPosition :one
+SELECT (count(*)::bigint + 1)
+FROM queue_entries
+WHERE status IN ('waiting', 'called', 'in_progress')
+  AND (priority > $1 OR (priority = $1 AND checked_in_at < $2));
+
 -- Idempotency --------------------------------------------------------
 
 CREATE TABLE idempotency_keys (

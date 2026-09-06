@@ -31,6 +31,8 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		g.POST("/appointments", h.Book)
 		g.POST("/appointments/:id/cancel", h.Cancel)
 		g.POST("/appointments/:id/reschedule", h.Reschedule)
+		g.GET("/queue", h.MyQueue)
+		g.POST("/queue", h.JoinQueue)
 	}
 }
 
@@ -294,4 +296,62 @@ func (h *Handler) Reschedule(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, toAppointmentResponse(appt))
+}
+
+// @Summary List my queue entries
+// @Description Returns the patient's queue entries across every clinic they attend, with their current position where still in the line.
+// @Tags portal
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} myQueueResponse
+// @Failure 401 {object} apperr.ErrorResponse
+// @Router /portal/queue [get]
+func (h *Handler) MyQueue(c *gin.Context) {
+	userID, err := httpctx.UserID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	items, err := h.svc.MyQueue(c.Request.Context(), userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, myQueueResponse{Items: toQueueEntryResponses(items)})
+}
+
+// @Summary Join a clinic queue
+// @Description Checks the patient into a clinic's queue. A patient profile is provisioned on first use.
+// @Tags portal
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param input body joinQueueInput true "Clinic to check in at"
+// @Success 201 {object} queueEntryResponse
+// @Failure 400 {object} apperr.ErrorResponse
+// @Failure 401 {object} apperr.ErrorResponse
+// @Failure 404 {object} apperr.ErrorResponse
+// @Router /portal/queue [post]
+func (h *Handler) JoinQueue(c *gin.Context) {
+	userID, err := httpctx.UserID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	var in joinQueueInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.Invalid("clinic_id is required"))
+		return
+	}
+	clinicID, err := httpctx.ParseUUID(in.ClinicID)
+	if err != nil {
+		c.Error(apperr.Invalid("invalid clinic_id"))
+		return
+	}
+	entry, err := h.svc.JoinQueue(c.Request.Context(), userID, clinicID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, toQueueEntryResponse(entry))
 }

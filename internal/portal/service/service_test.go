@@ -9,8 +9,13 @@ import (
 
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/portal/service"
+	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
 	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
 )
+
+func newPortalSvc(fake service.Repository, appt *schedsvc.Service) *service.Service {
+	return service.NewService(fake, appt, queuesvc.NewService(&stubQueueRepo{}))
+}
 
 func TestBook_ProvisionsProfileAndBooksInClinic(t *testing.T) {
 	userID, clinicID, doctorID, patientID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
@@ -26,7 +31,7 @@ func TestBook_ProvisionsProfileAndBooksInClinic(t *testing.T) {
 		},
 	}
 	aptSvc := schedsvc.NewServiceWithIdentity(apptRepo, nil, fixedIdentity{patientID: patientID}, time.Minute)
-	svc := service.NewService(fake, aptSvc)
+	svc := newPortalSvc(fake, aptSvc)
 
 	got, replayed, err := svc.Book(context.Background(), userID, service.BookInput{
 		ClinicID: clinicID, DoctorID: doctorID, StartTime: start, DurationMinutes: 30,
@@ -55,7 +60,7 @@ func TestBook_ProvisionsProfileAndBooksInClinic(t *testing.T) {
 func TestBook_UnknownClinicFails(t *testing.T) {
 	fake := &fakePatientRepo{clinicErr: apperr.NotFound("clinic not found")}
 	aptSvc := schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute)
-	svc := service.NewService(fake, aptSvc)
+	svc := newPortalSvc(fake, aptSvc)
 
 	_, _, err := svc.Book(context.Background(), uuid.New(), service.BookInput{
 		ClinicID: uuid.New(), DoctorID: uuid.New(), StartTime: time.Now().Add(time.Hour), DurationMinutes: 30,
@@ -73,7 +78,7 @@ func TestCancel_CancelsPatientsOwnAppointment(t *testing.T) {
 		appt: &schedsvc.Appointment{ID: apptID, PatientID: patientID, Status: "scheduled"},
 	}
 	aptSvc := schedsvc.NewServiceWithIdentity(apptRepo, nil, fixedIdentity{patientID: patientID}, time.Minute)
-	svc := service.NewService(fake, aptSvc)
+	svc := newPortalSvc(fake, aptSvc)
 
 	got, err := svc.Cancel(context.Background(), userID, clinicID, apptID, "changed my mind")
 	if err != nil {
@@ -99,7 +104,7 @@ func TestCancel_OthersAppointmentForbidden(t *testing.T) {
 		appt: &schedsvc.Appointment{ID: apptID, PatientID: apptOwner, Status: "scheduled"},
 	}
 	aptSvc := schedsvc.NewServiceWithIdentity(apptRepo, nil, fixedIdentity{patientID: actorPID}, time.Minute)
-	svc := service.NewService(fake, aptSvc)
+	svc := newPortalSvc(fake, aptSvc)
 
 	// The actor resolves to a patient grant that does not match the
 	// appointment's owner, so the appointment service denies the mutation.
@@ -118,7 +123,7 @@ func TestReschedule_MovesAppointment(t *testing.T) {
 		appt: &schedsvc.Appointment{ID: apptID, PatientID: patientID, Status: "scheduled"},
 	}
 	aptSvc := schedsvc.NewServiceWithIdentity(apptRepo, nil, fixedIdentity{patientID: patientID}, time.Minute)
-	svc := service.NewService(fake, aptSvc)
+	svc := newPortalSvc(fake, aptSvc)
 
 	got, err := svc.Reschedule(context.Background(), userID, clinicID, apptID, service.RescheduleInput{
 		StartTime: newStart, DurationMinutes: 60,
@@ -140,7 +145,7 @@ func TestReschedule_MovesAppointment(t *testing.T) {
 
 func TestMe_RejectsDeactivatedAccount(t *testing.T) {
 	fake := &fakePatientRepo{user: &service.User{ID: uuid.New(), IsActive: false}}
-	svc := service.NewService(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute))
+	svc := newPortalSvc(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute))
 
 	_, err := svc.Me(context.Background(), uuid.New())
 	if ae := apperr.From(err); ae.Kind != apperr.KindUnauthorized {
@@ -159,9 +164,11 @@ type fakePatientRepo struct {
 	appt      *service.Appointment
 	apptErr   error
 	profileID uuid.UUID
+	myQueues  []service.QueueEntry
 
-	ensureSlug   string
-	ensureUserID uuid.UUID
+	ensureSlug    string
+	ensureUserID  uuid.UUID
+	myQueueUserID uuid.UUID
 }
 
 func (f *fakePatientRepo) Me(_ context.Context, userID uuid.UUID) (*service.User, error) {
@@ -190,6 +197,37 @@ func (f *fakePatientRepo) GetAppointment(_ context.Context, _ uuid.UUID, _, _ uu
 func (f *fakePatientRepo) EnsurePatientProfile(_ context.Context, slug string, userID uuid.UUID) (uuid.UUID, error) {
 	f.ensureSlug, f.ensureUserID = slug, userID
 	return f.profileID, nil
+}
+
+func (f *fakePatientRepo) ListMyQueues(_ context.Context, userID uuid.UUID) ([]service.QueueEntry, error) {
+	f.myQueueUserID = userID
+	return f.myQueues, nil
+}
+
+var _ queuesvc.Repository = (*stubQueueRepo)(nil)
+
+type stubQueueRepo struct {
+	created *queuesvc.Entry
+}
+
+func (s *stubQueueRepo) CreateEntry(_ context.Context, profileID uuid.UUID, _ *uuid.UUID, _ int32) (*queuesvc.Entry, error) {
+	s.created = &queuesvc.Entry{ID: uuid.New(), ProfileID: profileID, Status: "waiting", Priority: 0}
+	return s.created, nil
+}
+func (s *stubQueueRepo) GetEntry(context.Context, uuid.UUID) (*queuesvc.Entry, error) {
+	return s.created, nil
+}
+func (s *stubQueueRepo) ListActive(context.Context, queuesvc.ListQuery) ([]queuesvc.Entry, int64, error) {
+	return nil, 0, nil
+}
+func (s *stubQueueRepo) ListForProfile(context.Context, uuid.UUID) ([]queuesvc.Entry, error) {
+	return nil, nil
+}
+func (s *stubQueueRepo) Position(context.Context, int32, time.Time) (int64, error) {
+	return 1, nil
+}
+func (s *stubQueueRepo) Transition(context.Context, uuid.UUID, string) (*queuesvc.Entry, error) {
+	return s.created, nil
 }
 
 var _ schedsvc.Repository = (*fakeApptRepo)(nil)
@@ -228,4 +266,52 @@ func (i fixedIdentity) PatientIDForUser(_ context.Context, _ uuid.UUID) (uuid.UU
 
 func (i fixedIdentity) DoctorIDForUser(_ context.Context, _ uuid.UUID) (uuid.UUID, error) {
 	return uuid.Nil, nil
+}
+
+func TestJoinQueue_ProvisionsProfileAndChecksIn(t *testing.T) {
+	userID, clinicID, patientID := uuid.New(), uuid.New(), uuid.New()
+	fake := &fakePatientRepo{
+		clinic:    &service.ClinicRef{ID: clinicID, Name: "Acme", Slug: "acme"},
+		profileID: patientID,
+	}
+	stub := &stubQueueRepo{}
+	svc := service.NewService(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute), queuesvc.NewService(stub))
+
+	entry, err := svc.JoinQueue(context.Background(), userID, clinicID)
+	if err != nil {
+		t.Fatalf("JoinQueue: %v", err)
+	}
+	if fake.ensureSlug != "acme" || fake.ensureUserID != userID {
+		t.Errorf("EnsurePatientProfile called with slug=%q user=%v", fake.ensureSlug, fake.ensureUserID)
+	}
+	if stub.created == nil || stub.created.ProfileID != patientID {
+		t.Fatalf("check-in not passed through: %+v", stub.created)
+	}
+	if entry.ClinicID != clinicID || entry.ClinicName != "Acme" {
+		t.Errorf("entry lacks clinic link: %+v", entry)
+	}
+	if entry.Status != "waiting" {
+		t.Errorf("expected waiting, got %q", entry.Status)
+	}
+}
+
+func TestMyQueue_ReturnsEntriesWithClinicLink(t *testing.T) {
+	userID := uuid.New()
+	fake := &fakePatientRepo{
+		myQueues: []service.QueueEntry{
+			{ID: uuid.New(), Status: "waiting", Position: 2, ClinicID: uuid.New(), ClinicName: "Acme"},
+		},
+	}
+	svc := newPortalSvc(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute))
+
+	items, err := svc.MyQueue(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("MyQueue: %v", err)
+	}
+	if len(items) != 1 || items[0].Position != 2 || items[0].ClinicName != "Acme" {
+		t.Fatalf("unexpected entries: %+v", items)
+	}
+	if fake.myQueueUserID != userID {
+		t.Errorf("repo called with user %v, want %v", fake.myQueueUserID, userID)
+	}
 }

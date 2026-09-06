@@ -107,6 +107,37 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (P
 	return i, err
 }
 
+const createQueueEntry = `-- name: CreateQueueEntry :one
+INSERT INTO queue_entries (profile_id, appointment_id, priority, checked_in_at)
+VALUES ($1, $2, $3, now())
+RETURNING id, appointment_id, profile_id, status, priority, checked_in_at, called_at, started_at, completed_at, created_at, updated_at
+`
+
+type CreateQueueEntryParams struct {
+	ProfileID     uuid.UUID
+	AppointmentID *uuid.UUID
+	Priority      int32
+}
+
+func (q *Queries) CreateQueueEntry(ctx context.Context, arg CreateQueueEntryParams) (QueueEntry, error) {
+	row := q.db.QueryRow(ctx, createQueueEntry, arg.ProfileID, arg.AppointmentID, arg.Priority)
+	var i QueueEntry
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.ProfileID,
+		&i.Status,
+		&i.Priority,
+		&i.CheckedInAt,
+		&i.CalledAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createScheduleException = `-- name: CreateScheduleException :one
 INSERT INTO schedule_exceptions (doctor_profile_id, date, start_time, end_time, type, reason)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -260,6 +291,67 @@ func (q *Queries) GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Pro
 	return i, err
 }
 
+const getQueueEntryByID = `-- name: GetQueueEntryByID :one
+SELECT qe.id, qe.appointment_id, qe.profile_id, qe.status, qe.priority, qe.checked_in_at, qe.called_at, qe.started_at, qe.completed_at, qe.created_at, qe.updated_at, p.display_name AS patient_name
+FROM queue_entries qe
+JOIN profiles p ON p.id = qe.profile_id
+WHERE qe.id = $1
+`
+
+type GetQueueEntryByIDRow struct {
+	ID            uuid.UUID
+	AppointmentID *uuid.UUID
+	ProfileID     uuid.UUID
+	Status        string
+	Priority      int32
+	CheckedInAt   time.Time
+	CalledAt      *time.Time
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	PatientName   string
+}
+
+func (q *Queries) GetQueueEntryByID(ctx context.Context, id uuid.UUID) (GetQueueEntryByIDRow, error) {
+	row := q.db.QueryRow(ctx, getQueueEntryByID, id)
+	var i GetQueueEntryByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.ProfileID,
+		&i.Status,
+		&i.Priority,
+		&i.CheckedInAt,
+		&i.CalledAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PatientName,
+	)
+	return i, err
+}
+
+const getQueueEntryPosition = `-- name: GetQueueEntryPosition :one
+SELECT (count(*)::bigint + 1)
+FROM queue_entries
+WHERE status IN ('waiting', 'called', 'in_progress')
+  AND (priority > $1 OR (priority = $1 AND checked_in_at < $2))
+`
+
+type GetQueueEntryPositionParams struct {
+	Priority    int32
+	CheckedInAt time.Time
+}
+
+func (q *Queries) GetQueueEntryPosition(ctx context.Context, arg GetQueueEntryPositionParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getQueueEntryPosition, arg.Priority, arg.CheckedInAt)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getRoleByName = `-- name: GetRoleByName :one
 SELECT id, name, description FROM roles WHERE name = $1
 `
@@ -336,6 +428,80 @@ func (q *Queries) InsertIdempotentResponse(ctx context.Context, arg InsertIdempo
 		arg.ExpiresAt,
 	)
 	return err
+}
+
+const listActiveQueue = `-- name: ListActiveQueue :many
+WITH active AS (
+    SELECT qe.id, qe.appointment_id, qe.profile_id, qe.status, qe.priority, qe.checked_in_at, qe.called_at, qe.started_at, qe.completed_at, qe.created_at, qe.updated_at, p.display_name AS patient_name
+    FROM queue_entries qe
+    JOIN profiles p ON p.id = qe.profile_id
+    WHERE qe.status IN ('waiting', 'called', 'in_progress')
+)
+SELECT a.id, a.appointment_id, a.profile_id, a.status, a.priority, a.checked_in_at, a.called_at, a.started_at, a.completed_at, a.created_at, a.updated_at, a.patient_name,
+       ROW_NUMBER() OVER (ORDER BY a.priority DESC, a.checked_in_at ASC)::bigint AS position,
+       (SELECT count(*)::bigint FROM active) AS active_total
+FROM active a
+WHERE ($1::timestamptz IS NULL OR a.checked_in_at >= $1::timestamptz)
+ORDER BY a.priority DESC, a.checked_in_at ASC
+LIMIT $3 OFFSET $2
+`
+
+type ListActiveQueueParams struct {
+	From   *time.Time
+	Offset int32
+	Limit  int32
+}
+
+type ListActiveQueueRow struct {
+	ID            uuid.UUID
+	AppointmentID *uuid.UUID
+	ProfileID     uuid.UUID
+	Status        string
+	Priority      int32
+	CheckedInAt   time.Time
+	CalledAt      *time.Time
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	PatientName   string
+	Position      int64
+	ActiveTotal   int64
+}
+
+func (q *Queries) ListActiveQueue(ctx context.Context, arg ListActiveQueueParams) ([]ListActiveQueueRow, error) {
+	rows, err := q.db.Query(ctx, listActiveQueue, arg.From, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveQueueRow{}
+	for rows.Next() {
+		var i ListActiveQueueRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AppointmentID,
+			&i.ProfileID,
+			&i.Status,
+			&i.Priority,
+			&i.CheckedInAt,
+			&i.CalledAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PatientName,
+			&i.Position,
+			&i.ActiveTotal,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAppointmentTypes = `-- name: ListAppointmentTypes :many
@@ -611,6 +777,62 @@ func (q *Queries) ListProfilesByRolePaginated(ctx context.Context, arg ListProfi
 	return items, nil
 }
 
+const listQueueEntriesForProfile = `-- name: ListQueueEntriesForProfile :many
+SELECT qe.id, qe.appointment_id, qe.profile_id, qe.status, qe.priority, qe.checked_in_at, qe.called_at, qe.started_at, qe.completed_at, qe.created_at, qe.updated_at, p.display_name AS patient_name
+FROM queue_entries qe
+JOIN profiles p ON p.id = qe.profile_id
+WHERE qe.profile_id = $1
+ORDER BY qe.checked_in_at DESC
+`
+
+type ListQueueEntriesForProfileRow struct {
+	ID            uuid.UUID
+	AppointmentID *uuid.UUID
+	ProfileID     uuid.UUID
+	Status        string
+	Priority      int32
+	CheckedInAt   time.Time
+	CalledAt      *time.Time
+	StartedAt     *time.Time
+	CompletedAt   *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	PatientName   string
+}
+
+func (q *Queries) ListQueueEntriesForProfile(ctx context.Context, profileID uuid.UUID) ([]ListQueueEntriesForProfileRow, error) {
+	rows, err := q.db.Query(ctx, listQueueEntriesForProfile, profileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListQueueEntriesForProfileRow{}
+	for rows.Next() {
+		var i ListQueueEntriesForProfileRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AppointmentID,
+			&i.ProfileID,
+			&i.Status,
+			&i.Priority,
+			&i.CheckedInAt,
+			&i.CalledAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PatientName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listScheduleExceptions = `-- name: ListScheduleExceptions :many
 SELECT id, doctor_profile_id, date, start_time, end_time, type, reason, created_at, updated_at
 FROM schedule_exceptions
@@ -782,6 +1004,41 @@ func (q *Queries) UpdateAppointmentType(ctx context.Context, arg UpdateAppointme
 		&i.Color,
 		&i.Icon,
 		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateQueueEntryStatus = `-- name: UpdateQueueEntryStatus :one
+UPDATE queue_entries
+SET status       = $2::text,
+    called_at    = CASE WHEN $2::text = 'called'      THEN COALESCE(called_at, now())   ELSE called_at END,
+    started_at   = CASE WHEN $2::text = 'in_progress' THEN COALESCE(started_at, now())   ELSE started_at END,
+    completed_at = CASE WHEN $2::text = 'completed'   THEN COALESCE(completed_at, now()) ELSE completed_at END,
+    updated_at   = now()
+WHERE id = $1
+RETURNING id, appointment_id, profile_id, status, priority, checked_in_at, called_at, started_at, completed_at, created_at, updated_at
+`
+
+type UpdateQueueEntryStatusParams struct {
+	ID      uuid.UUID
+	Column2 string
+}
+
+func (q *Queries) UpdateQueueEntryStatus(ctx context.Context, arg UpdateQueueEntryStatusParams) (QueueEntry, error) {
+	row := q.db.QueryRow(ctx, updateQueueEntryStatus, arg.ID, arg.Column2)
+	var i QueueEntry
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.ProfileID,
+		&i.Status,
+		&i.Priority,
+		&i.CheckedInAt,
+		&i.CalledAt,
+		&i.StartedAt,
+		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

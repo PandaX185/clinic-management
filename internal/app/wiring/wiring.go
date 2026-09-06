@@ -23,6 +23,9 @@ import (
 	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
 	portalrepo "github.com/PandaX185/clinic-management/internal/portal/repo"
 	portalsvc "github.com/PandaX185/clinic-management/internal/portal/service"
+	queueapi "github.com/PandaX185/clinic-management/internal/queue/api"
+	queuerepo "github.com/PandaX185/clinic-management/internal/queue/repo"
+	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
 	schedapi "github.com/PandaX185/clinic-management/internal/scheduling/api"
 	schedrepo "github.com/PandaX185/clinic-management/internal/scheduling/repo"
 	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
@@ -92,7 +95,12 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 	publicH := bookingapi.NewHandler(publicSvc)
 
 	patientRepo := portalrepo.NewPostgresRepository(d.Pool)
-	patientSvc := portalsvc.NewService(patientRepo, aptSvc)
+
+	queueRepo := queuerepo.NewPostgresRepository(d.Pool)
+	queueSvc := queuesvc.NewService(queueRepo)
+	queueH := queueapi.NewHandler(queueSvc)
+
+	patientSvc := portalsvc.NewService(patientRepo, aptSvc, queueSvc)
 	patientH := portalapi.NewHandler(patientSvc)
 
 	r := server.NewRouter(server.RouterDeps{
@@ -108,6 +116,7 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, error) {
 		DirectoryH:      dirH,
 		PublicH:         publicH,
 		PatientH:        patientH,
+		QueueH:          queueH,
 		Metrics:         m,
 	})
 

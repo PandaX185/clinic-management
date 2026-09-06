@@ -1973,6 +1973,92 @@
                 }
             }
         },
+        "/portal/queue": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the patient's queue entries across every clinic they attend, with their current position where still in the line.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portal"
+                ],
+                "summary": "List my queue entries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.myQueueResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Checks the patient into a clinic's queue. A patient profile is provisioned on first use.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "portal"
+                ],
+                "summary": "Join a clinic queue",
+                "parameters": [
+                    {
+                        "description": "Clinic to check in at",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.joinQueueInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.queueEntryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/profiles": {
             "get": {
                 "security": [
@@ -2086,6 +2172,207 @@
                     }
                 }
             }
+        },
+        "/queue": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the clinic's current line (waiting/called/in_progress) with derived positions, ordered by priority then check-in time.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "List the active queue",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only entries checked in on/after this date (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 0,
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.queueListResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds a patient to the clinic queue. A patient may also check in from the portal; this endpoint is for staff over-the-counter walk-ins.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "Check a patient in",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Patient check-in",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.checkInInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.entryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/queue/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Moves an entry through the queue lifecycle: waiting -\u003e called -\u003e in_progress -\u003e completed; waiting/called may also be skipped or cancelled.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "queue"
+                ],
+                "summary": "Update a queue entry",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant id",
+                        "name": "X-Tenant-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Queue entry id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Target status",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.statusInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.entryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apperr.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2147,6 +2434,23 @@
                     "type": "string"
                 },
                 "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.checkInInput": {
+            "type": "object",
+            "required": [
+                "profile_id"
+            ],
+            "properties": {
+                "appointment_id": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "profile_id": {
                     "type": "string"
                 }
             }
@@ -2320,6 +2624,47 @@
                 }
             }
         },
+        "api.entryResponse": {
+            "type": "object",
+            "properties": {
+                "active_total": {
+                    "type": "integer"
+                },
+                "appointment_id": {
+                    "type": "string"
+                },
+                "called_at": {
+                    "type": "string"
+                },
+                "checked_in_at": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "patient_name": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "api.exceptionInput": {
             "type": "object",
             "required": [
@@ -2349,6 +2694,28 @@
                         "unavailable",
                         "extra_hours"
                     ]
+                }
+            }
+        },
+        "api.joinQueueInput": {
+            "type": "object",
+            "required": [
+                "clinic_id"
+            ],
+            "properties": {
+                "clinic_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.myQueueResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.queueEntryResponse"
+                    }
                 }
             }
         },
@@ -2400,6 +2767,70 @@
                     "items": {
                         "$ref": "#/definitions/api.profileResponse"
                     }
+                }
+            }
+        },
+        "api.queueEntryResponse": {
+            "type": "object",
+            "properties": {
+                "active_total": {
+                    "type": "integer"
+                },
+                "appointment_id": {
+                    "type": "string"
+                },
+                "called_at": {
+                    "type": "string"
+                },
+                "checked_in_at": {
+                    "type": "string"
+                },
+                "clinic_id": {
+                    "type": "string"
+                },
+                "clinic_name": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.queueListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.entryResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -2517,6 +2948,25 @@
                     "items": {
                         "$ref": "#/definitions/api.slotResponse"
                     }
+                }
+            }
+        },
+        "api.statusInput": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "waiting",
+                        "called",
+                        "in_progress",
+                        "completed",
+                        "skipped",
+                        "cancelled"
+                    ]
                 }
             }
         },

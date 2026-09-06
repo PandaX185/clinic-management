@@ -83,3 +83,58 @@ func toAppointmentResponses(items []service.Appointment) []appointmentResponse {
 	}
 	return out
 }
+
+type joinQueueInput struct {
+	ClinicID string `json:"clinic_id" binding:"required,uuid"`
+}
+
+type queueEntryResponse struct {
+	ID            string     `json:"id"`
+	ProfileID     string     `json:"profile_id"`
+	AppointmentID *string    `json:"appointment_id,omitempty"`
+	Status        string     `json:"status"`
+	Priority      int32      `json:"priority"`
+	CheckedInAt   time.Time  `json:"checked_in_at"`
+	CalledAt      *time.Time `json:"called_at,omitempty"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+	Position      int64      `json:"position"`
+	ActiveTotal   int64      `json:"active_total"`
+	ClinicID      string     `json:"clinic_id"`
+	ClinicName    string     `json:"clinic_name"`
+}
+
+type myQueueResponse struct {
+	Items []queueEntryResponse `json:"items"`
+}
+
+func toQueueEntryResponse(e *service.QueueEntry) queueEntryResponse {
+	var apptID *string
+	if e.AppointmentID != nil {
+		s := e.AppointmentID.String()
+		apptID = &s
+	}
+	return queueEntryResponse{
+		ID:            e.ID.String(),
+		ProfileID:     e.ProfileID.String(),
+		AppointmentID: apptID,
+		Status:        e.Status,
+		Priority:      e.Priority,
+		CheckedInAt:   e.CheckedInAt,
+		CalledAt:      e.CalledAt,
+		StartedAt:     e.StartedAt,
+		CompletedAt:   e.CompletedAt,
+		Position:      e.Position,
+		ActiveTotal:   e.ActiveTotal,
+		ClinicID:      e.ClinicID.String(),
+		ClinicName:    e.ClinicName,
+	}
+}
+
+func toQueueEntryResponses(items []service.QueueEntry) []queueEntryResponse {
+	out := make([]queueEntryResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, toQueueEntryResponse(&item))
+	}
+	return out
+}

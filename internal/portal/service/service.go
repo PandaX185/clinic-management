@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
 	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
@@ -105,10 +106,11 @@ type Service struct {
 	repo     Repository
 	apptSvc  *schedsvc.Service
 	queueSvc *queuesvc.Service
+	paySvc   *paymentsvc.Service
 }
 
-func NewService(repo Repository, apptSvc *schedsvc.Service, queueSvc *queuesvc.Service) *Service {
-	return &Service{repo: repo, apptSvc: apptSvc, queueSvc: queueSvc}
+func NewService(repo Repository, apptSvc *schedsvc.Service, queueSvc *queuesvc.Service, paySvc *paymentsvc.Service) *Service {
+	return &Service{repo: repo, apptSvc: apptSvc, queueSvc: queueSvc, paySvc: paySvc}
 }
 
 func (s *Service) Me(ctx context.Context, userID uuid.UUID) (*User, error) {
@@ -204,6 +206,24 @@ func (s *Service) Reschedule(ctx context.Context, userID uuid.UUID, clinicID, ap
 		return nil, err
 	}
 	return toPatientAppointment(updated, clinic), nil
+}
+
+// Pay charges the patient for an appointment at the given clinic. The clinic
+// must be explicit because the payment row lives in that clinic's tenant
+// schema. The amount comes from the appointment type price, never the client.
+func (s *Service) Pay(ctx context.Context, userID, clinicID, apptID uuid.UUID, method paymentsvc.Method) (*paymentsvc.Payment, *ClinicRef, error) {
+	clinic, err := s.repo.GetClinic(ctx, clinicID)
+	if err != nil {
+		return nil, nil, err
+	}
+	payment, err := s.paySvc.Pay(database.WithTenantSlug(ctx, clinic.Slug), userID, paymentsvc.PayInput{
+		AppointmentID: apptID,
+		Method:        method,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return payment, clinic, nil
 }
 
 // patientAccess builds the always-patient AccessContext for the portal. The

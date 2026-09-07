@@ -64,6 +64,19 @@ type IdempotencyKey struct {
 	CreatedAt      time.Time
 }
 
+type Payment struct {
+	ID            uuid.UUID
+	AppointmentID uuid.UUID
+	Amount        pgtype.Numeric
+	Currency      string
+	Method        string
+	Status        string
+	PaidAt        *time.Time
+	Reference     *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type Permission struct {
 	ID          uuid.UUID
 	Name        string

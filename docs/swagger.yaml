@@ -237,6 +237,19 @@ definitions:
       total:
         type: integer
     type: object
+  api.payInput:
+    properties:
+      clinic_id:
+        type: string
+      method:
+        enum:
+        - cash
+        - card
+        - e_wallet
+        type: string
+    required:
+    - clinic_id
+    type: object
   api.profileResponse:
     properties:
       created_at:
@@ -509,6 +522,29 @@ definitions:
       phone:
         type: string
     type: object
+  github_com_PandaX185_clinic-management_internal_payments_api.paymentResponse:
+    properties:
+      amount:
+        type: string
+      appointment_id:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      id:
+        type: string
+      method:
+        type: string
+      paid_at:
+        type: string
+      reference:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
   github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse:
     properties:
       appointment_type_id:
@@ -538,6 +574,33 @@ definitions:
         items:
           $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.appointmentResponse'
         type: array
+    type: object
+  github_com_PandaX185_clinic-management_internal_portal_api.paymentResponse:
+    properties:
+      amount:
+        type: string
+      appointment_id:
+        type: string
+      clinic_id:
+        type: string
+      clinic_name:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      id:
+        type: string
+      method:
+        type: string
+      paid_at:
+        type: string
+      reference:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
     type: object
   github_com_PandaX185_clinic-management_internal_portal_api.userResponse:
     properties:
@@ -1478,6 +1541,55 @@ paths:
       summary: Create clinic
       tags:
       - clinics
+  /clinics/{id}/appointments/{apptId}/payments/{paymentId}/refund:
+    post:
+      description: Reverses a paid payment in the active clinic. Only a payment in
+        paid status can be refunded.
+      parameters:
+      - description: Tenant id (clinic the payment lives in)
+        in: header
+        name: X-Tenant-ID
+        required: true
+        type: string
+      - description: Clinic id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Appointment id the payment belongs to
+        in: path
+        name: apptId
+        required: true
+        type: string
+      - description: Payment id to refund
+        in: path
+        name: paymentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_payments_api.paymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Refund a payment
+      tags:
+      - payments
   /clinics/{id}/staff:
     post:
       consumes:
@@ -1879,6 +1991,53 @@ paths:
       security:
       - BearerAuth: []
       summary: Cancel my appointment
+      tags:
+      - portal
+  /portal/appointments/{id}/pay:
+    post:
+      consumes:
+      - application/json
+      description: Charges the patient for one of their appointments in the given
+        clinic. The amount is set by the appointment type price. Repeated payment
+        requests are idempotent and will not charge twice.
+      parameters:
+      - description: Appointment id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Clinic and payment method
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/api.payInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_PandaX185_clinic-management_internal_portal_api.paymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apperr.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pay for my appointment
       tags:
       - portal
   /portal/appointments/{id}/reschedule:

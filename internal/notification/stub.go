@@ -80,6 +80,8 @@ func subjectFor(eventType string) (string, error) {
 		return "Appointment completed", nil
 	case "appointment.no_show":
 		return "Appointment marked as no-show", nil
+	case "appointment.paid":
+		return "Payment received", nil
 	default:
 		return "", fmt.Errorf("unknown appointment event %q", eventType)
 	}

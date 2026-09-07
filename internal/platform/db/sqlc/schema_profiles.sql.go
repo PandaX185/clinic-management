@@ -255,6 +255,50 @@ func (q *Queries) GetIdempotentResponse(ctx context.Context, arg GetIdempotentRe
 	return i, err
 }
 
+const getPaymentByID = `-- name: GetPaymentByID :one
+SELECT id, appointment_id, amount, currency, method, status, paid_at, reference, created_at, updated_at FROM payments WHERE id = $1
+`
+
+func (q *Queries) GetPaymentByID(ctx context.Context, id uuid.UUID) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentByID, id)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.Amount,
+		&i.Currency,
+		&i.Method,
+		&i.Status,
+		&i.PaidAt,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPaymentForAppointment = `-- name: GetPaymentForAppointment :one
+SELECT id, appointment_id, amount, currency, method, status, paid_at, reference, created_at, updated_at FROM payments WHERE appointment_id = $1
+`
+
+func (q *Queries) GetPaymentForAppointment(ctx context.Context, appointmentID uuid.UUID) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentForAppointment, appointmentID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.Amount,
+		&i.Currency,
+		&i.Method,
+		&i.Status,
+		&i.PaidAt,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProfileByID = `-- name: GetProfileByID :one
 SELECT id, user_id, display_name, status, created_at, updated_at FROM profiles WHERE id = $1
 `
@@ -428,6 +472,47 @@ func (q *Queries) InsertIdempotentResponse(ctx context.Context, arg InsertIdempo
 		arg.ExpiresAt,
 	)
 	return err
+}
+
+const insertPayment = `-- name: InsertPayment :one
+INSERT INTO payments (appointment_id, amount, currency, method, status, reference)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (appointment_id) DO NOTHING
+RETURNING id, appointment_id, amount, currency, method, status, paid_at, reference, created_at, updated_at
+`
+
+type InsertPaymentParams struct {
+	AppointmentID uuid.UUID
+	Amount        pgtype.Numeric
+	Currency      string
+	Method        string
+	Status        string
+	Reference     *string
+}
+
+func (q *Queries) InsertPayment(ctx context.Context, arg InsertPaymentParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, insertPayment,
+		arg.AppointmentID,
+		arg.Amount,
+		arg.Currency,
+		arg.Method,
+		arg.Status,
+		arg.Reference,
+	)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.Amount,
+		&i.Currency,
+		&i.Method,
+		&i.Status,
+		&i.PaidAt,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const listActiveQueue = `-- name: ListActiveQueue :many
@@ -942,6 +1027,59 @@ func (q *Queries) ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const markPaymentPaid = `-- name: MarkPaymentPaid :one
+UPDATE payments SET
+    status  = 'paid',
+    paid_at = COALESCE(paid_at, now()),
+    updated_at = now()
+WHERE id = $1 AND status = 'pending'
+RETURNING id, appointment_id, amount, currency, method, status, paid_at, reference, created_at, updated_at
+`
+
+func (q *Queries) MarkPaymentPaid(ctx context.Context, id uuid.UUID) (Payment, error) {
+	row := q.db.QueryRow(ctx, markPaymentPaid, id)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.Amount,
+		&i.Currency,
+		&i.Method,
+		&i.Status,
+		&i.PaidAt,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markPaymentRefunded = `-- name: MarkPaymentRefunded :one
+UPDATE payments SET
+    status  = 'refunded',
+    updated_at = now()
+WHERE id = $1 AND status = 'paid'
+RETURNING id, appointment_id, amount, currency, method, status, paid_at, reference, created_at, updated_at
+`
+
+func (q *Queries) MarkPaymentRefunded(ctx context.Context, id uuid.UUID) (Payment, error) {
+	row := q.db.QueryRow(ctx, markPaymentRefunded, id)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.Amount,
+		&i.Currency,
+		&i.Method,
+		&i.Status,
+		&i.PaidAt,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const profileHasRole = `-- name: ProfileHasRole :one

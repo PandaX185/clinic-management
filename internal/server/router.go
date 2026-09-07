@@ -15,6 +15,7 @@ import (
 	clinicsvc "github.com/PandaX185/clinic-management/internal/clinic/service"
 	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
 	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
+	paymentapi "github.com/PandaX185/clinic-management/internal/payments/api"
 	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
 	queueapi "github.com/PandaX185/clinic-management/internal/queue/api"
 	schedapi "github.com/PandaX185/clinic-management/internal/scheduling/api"
@@ -37,6 +38,7 @@ type RouterDeps struct {
 	PublicH         *bookingapi.Handler
 	PatientH        *portalapi.Handler
 	QueueH          *queueapi.Handler
+	PaymentH        *paymentapi.Handler
 	Metrics         *metrics.Metrics
 }
 
@@ -116,6 +118,8 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	deps.DirectoryH.RegisterRoutes(protected) // profiles, doctors, appointment types
 
 	deps.QueueH.RegisterRoutes(protected) // clinic queue / line management
+
+	deps.PaymentH.RegisterRoutes(protected) // payment refunds (admin)
 
 	deps.AppointH.RegisterRoutes(protected)
 

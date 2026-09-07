@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
 	"github.com/PandaX185/clinic-management/internal/portal/service"
@@ -29,6 +30,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		g.GET("/appointments", h.ListAppointments)
 		g.GET("/appointments/:id", h.GetAppointment)
 		g.POST("/appointments", h.Book)
+		g.POST("/appointments/:id/pay", h.Pay)
 		g.POST("/appointments/:id/cancel", h.Cancel)
 		g.POST("/appointments/:id/reschedule", h.Reschedule)
 		g.GET("/queue", h.MyQueue)
@@ -206,6 +208,53 @@ func (h *Handler) Book(c *gin.Context) {
 		c.Header("Idempotent-Replay", "true")
 	}
 	c.JSON(http.StatusCreated, toAppointmentResponse(appt))
+}
+
+// @Summary Pay for my appointment
+// @Description Charges the patient for one of their appointments in the given clinic. The amount is set by the appointment type price. Repeated payment requests are idempotent and will not charge twice.
+// @Tags portal
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Appointment id"
+// @Param input body payInput true "Clinic and payment method"
+// @Success 201 {object} paymentResponse
+// @Failure 400 {object} apperr.ErrorResponse
+// @Failure 403 {object} apperr.ErrorResponse
+// @Failure 404 {object} apperr.ErrorResponse
+// @Failure 409 {object} apperr.ErrorResponse
+// @Router /portal/appointments/{id}/pay [post]
+func (h *Handler) Pay(c *gin.Context) {
+	userID, err := httpctx.UserID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	apptID, err := httpctx.ParseUUIDParam(c, "id")
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	var in payInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.Invalid("clinic_id and method are required"))
+		return
+	}
+	clinicID, err := httpctx.ParseUUID(in.ClinicID)
+	if err != nil {
+		c.Error(apperr.Invalid("invalid clinic_id"))
+		return
+	}
+	method := paymentsvc.MethodCard
+	if in.Method != "" {
+		method = paymentsvc.Method(in.Method)
+	}
+	payment, clinic, err := h.svc.Pay(c.Request.Context(), userID, clinicID, apptID, method)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, toPaymentResponse(payment, clinic))
 }
 
 // @Summary Cancel my appointment

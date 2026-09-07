@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
 	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/portal/service"
 	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
@@ -14,7 +15,46 @@ import (
 )
 
 func newPortalSvc(fake service.Repository, appt *schedsvc.Service) *service.Service {
-	return service.NewService(fake, appt, queuesvc.NewService(&stubQueueRepo{}))
+	return service.NewService(fake, appt, queuesvc.NewService(&stubQueueRepo{}), paymentsvc.NewService(&stubPaymentRepo{}, nil, "EGP"))
+}
+
+var _ paymentsvc.Repository = (*stubPaymentRepo)(nil)
+
+type stubPaymentRepo struct {
+	appt *paymentsvc.Appointment
+	paid *paymentsvc.Payment
+}
+
+func (s *stubPaymentRepo) GetAppointmentForPayment(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*paymentsvc.Appointment, error) {
+	return s.appt, nil
+}
+func (s *stubPaymentRepo) InsertPending(_ context.Context, _ paymentsvc.PayInput, _ string, _ string) (*paymentsvc.Payment, error) {
+	p := &paymentsvc.Payment{ID: uuid.New(), AppointmentID: s.appt.ID, Status: paymentsvc.StatusPending}
+	s.paid = p
+	return p, nil
+}
+func (s *stubPaymentRepo) GetForAppointment(_ context.Context, _ uuid.UUID) (*paymentsvc.Payment, error) {
+	return nil, nil
+}
+func (s *stubPaymentRepo) GetByID(_ context.Context, id uuid.UUID) (*paymentsvc.Payment, error) {
+	if s.paid != nil && s.paid.ID == id {
+		return s.paid, nil
+	}
+	return nil, nil
+}
+func (s *stubPaymentRepo) MarkPaid(_ context.Context, _ uuid.UUID) (*paymentsvc.Payment, error) {
+	if s.paid != nil {
+		s.paid.Status = paymentsvc.StatusPaid
+		now := time.Now()
+		s.paid.PaidAt = &now
+	}
+	return s.paid, nil
+}
+func (s *stubPaymentRepo) MarkRefunded(_ context.Context, id uuid.UUID) (*paymentsvc.Payment, error) {
+	if s.paid != nil && s.paid.ID == id {
+		s.paid.Status = paymentsvc.StatusRefunded
+	}
+	return s.paid, nil
 }
 
 func TestBook_ProvisionsProfileAndBooksInClinic(t *testing.T) {
@@ -140,6 +180,39 @@ func TestReschedule_MovesAppointment(t *testing.T) {
 	tr := apptRepo.transitions[0]
 	if tr.NewStartTime == nil || !tr.NewStartTime.Equal(newStart) {
 		t.Errorf("new start time not forwarded: %+v", tr.NewStartTime)
+	}
+}
+
+func TestPay_ChargesInsClinicAndReturnsPayment(t *testing.T) {
+	userID, clinicID, apptID := uuid.New(), uuid.New(), uuid.New()
+	fake := &fakePatientRepo{clinic: &service.ClinicRef{ID: clinicID, Name: "Acme", Slug: "acme"}}
+	stub := &stubPaymentRepo{appt: &paymentsvc.Appointment{ID: apptID, Status: "scheduled"}}
+	svc := service.NewService(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute), queuesvc.NewService(&stubQueueRepo{}), paymentsvc.NewService(stub, nil, "EGP"))
+
+	payment, clinic, err := svc.Pay(context.Background(), userID, clinicID, apptID, paymentsvc.MethodCard)
+	if err != nil {
+		t.Fatalf("Pay: %v", err)
+	}
+	if payment.Status != paymentsvc.StatusPaid {
+		t.Errorf("expected paid, got %s", payment.Status)
+	}
+	if payment.AppointmentID != apptID {
+		t.Errorf("payment for wrong appointment: %v", payment.AppointmentID)
+	}
+	if clinic.ID != clinicID || clinic.Name != "Acme" {
+		t.Errorf("unexpected clinic link: %+v", clinic)
+	}
+}
+
+func TestPay_UnknownClinicFails(t *testing.T) {
+	svc := service.NewService(&fakePatientRepo{clinicErr: apperr.NotFound("clinic not found")},
+		schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute),
+		queuesvc.NewService(&stubQueueRepo{}),
+		paymentsvc.NewService(&stubPaymentRepo{}, nil, "EGP"))
+
+	_, _, err := svc.Pay(context.Background(), uuid.New(), uuid.New(), uuid.New(), paymentsvc.MethodCard)
+	if ae := apperr.From(err); ae.Kind != apperr.KindNotFound {
+		t.Fatalf("expected NotFound, got %v", err)
 	}
 }
 
@@ -275,7 +348,7 @@ func TestJoinQueue_ProvisionsProfileAndChecksIn(t *testing.T) {
 		profileID: patientID,
 	}
 	stub := &stubQueueRepo{}
-	svc := service.NewService(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute), queuesvc.NewService(stub))
+	svc := service.NewService(fake, schedsvc.NewService(&fakeApptRepo{}, nil, nil, time.Minute), queuesvc.NewService(stub), paymentsvc.NewService(&stubPaymentRepo{}, nil, "EGP"))
 
 	entry, err := svc.JoinQueue(context.Background(), userID, clinicID)
 	if err != nil {

@@ -20,6 +20,9 @@ import (
 	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
 	idrepo "github.com/PandaX185/clinic-management/internal/identity/repo"
 	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
+	paymentapi "github.com/PandaX185/clinic-management/internal/payments/api"
+	paymentrepo "github.com/PandaX185/clinic-management/internal/payments/repo"
+	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
 	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
 	portalrepo "github.com/PandaX185/clinic-management/internal/portal/repo"
 	portalsvc "github.com/PandaX185/clinic-management/internal/portal/service"
@@ -107,7 +110,15 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, *notif.Worker, error) {
 	queueSvc := queuesvc.NewService(queueRepo)
 	queueH := queueapi.NewHandler(queueSvc)
 
-	patientSvc := portalsvc.NewService(patientRepo, aptSvc, queueSvc)
+	paymentRepo := paymentrepo.NewPostgresRepository(d.Pool)
+	var paymentPublisher schedsvc.EventPublisher
+	if d.NATS != nil {
+		paymentPublisher = notif.AppointmentEventPublisher{Bus: d.NATS, Subject: natsclient.SubjectNotify}
+	}
+	paymentSvc := paymentsvc.NewService(paymentRepo, paymentPublisher, "EGP")
+	paymentH := paymentapi.NewHandler(paymentSvc)
+
+	patientSvc := portalsvc.NewService(patientRepo, aptSvc, queueSvc, paymentSvc)
 	patientH := portalapi.NewHandler(patientSvc)
 
 	r := server.NewRouter(server.RouterDeps{
@@ -124,6 +135,7 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, *notif.Worker, error) {
 		PublicH:         publicH,
 		PatientH:        patientH,
 		QueueH:          queueH,
+		PaymentH:        paymentH,
 		Metrics:         m,
 	})
 

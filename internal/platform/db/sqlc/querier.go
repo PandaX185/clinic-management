@@ -39,6 +39,8 @@ type Querier interface {
 	GetClinicByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetClinicBySlug(ctx context.Context, slug string) (Tenant, error)
 	GetIdempotentResponse(ctx context.Context, arg GetIdempotentResponseParams) (IdempotencyKey, error)
+	GetPaymentByID(ctx context.Context, id uuid.UUID) (Payment, error)
+	GetPaymentForAppointment(ctx context.Context, appointmentID uuid.UUID) (Payment, error)
 	GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
 	GetProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
 	GetQueueEntryByID(ctx context.Context, id uuid.UUID) (GetQueueEntryByIDRow, error)
@@ -50,6 +52,7 @@ type Querier interface {
 	GetUserByPhone(ctx context.Context, phone string) (User, error)
 	InsertDoctorSchedule(ctx context.Context, arg InsertDoctorScheduleParams) (DoctorSchedule, error)
 	InsertIdempotentResponse(ctx context.Context, arg InsertIdempotentResponseParams) error
+	InsertPayment(ctx context.Context, arg InsertPaymentParams) (Payment, error)
 	// Refresh tokens (hashed storage for validation/revocation)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	ListActiveQueue(ctx context.Context, arg ListActiveQueueParams) ([]ListActiveQueueRow, error)
@@ -75,6 +78,8 @@ type Querier interface {
 	ListScheduleExceptionsForDate(ctx context.Context, arg ListScheduleExceptionsForDateParams) ([]ScheduleException, error)
 	ListUserClinicIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	ListUserRoles(ctx context.Context, profileID uuid.UUID) ([]ListUserRolesRow, error)
+	MarkPaymentPaid(ctx context.Context, id uuid.UUID) (Payment, error)
+	MarkPaymentRefunded(ctx context.Context, id uuid.UUID) (Payment, error)
 	ProfileHasRole(ctx context.Context, arg ProfileHasRoleParams) (bool, error)
 	RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (Appointment, error)
 	SetClinicActive(ctx context.Context, arg SetClinicActiveParams) error

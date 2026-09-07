@@ -336,6 +336,51 @@ FROM queue_entries
 WHERE status IN ('waiting', 'called', 'in_progress')
   AND (priority > $1 OR (priority = $1 AND checked_in_at < $2));
 
+-- Payments ------------------------------------------------------------
+
+CREATE TABLE payments (
+    id             UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    appointment_id UUID         NOT NULL UNIQUE REFERENCES appointments(id) ON DELETE RESTRICT,
+    amount         DECIMAL(12,2) NOT NULL CHECK (amount >= 0),
+    currency       VARCHAR(3)   NOT NULL DEFAULT 'EGP',
+    method         VARCHAR(20)  NOT NULL CHECK (method IN ('cash', 'card', 'e_wallet')),
+    status         VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'paid', 'failed', 'refunded')),
+    paid_at        TIMESTAMPTZ,
+    reference      VARCHAR(255),
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_payments_status ON payments(status, created_at);
+
+-- name: InsertPayment :one
+INSERT INTO payments (appointment_id, amount, currency, method, status, reference)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (appointment_id) DO NOTHING
+RETURNING *;
+
+-- name: GetPaymentForAppointment :one
+SELECT * FROM payments WHERE appointment_id = $1;
+
+-- name: GetPaymentByID :one
+SELECT * FROM payments WHERE id = $1;
+
+-- name: MarkPaymentPaid :one
+UPDATE payments SET
+    status  = 'paid',
+    paid_at = COALESCE(paid_at, now()),
+    updated_at = now()
+WHERE id = $1 AND status = 'pending'
+RETURNING *;
+
+-- name: MarkPaymentRefunded :one
+UPDATE payments SET
+    status  = 'refunded',
+    updated_at = now()
+WHERE id = $1 AND status = 'paid'
+RETURNING *;
+
 -- Idempotency --------------------------------------------------------
 
 CREATE TABLE idempotency_keys (

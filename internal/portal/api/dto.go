@@ -7,6 +7,7 @@ package api
 import (
 	"time"
 
+	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
 	"github.com/PandaX185/clinic-management/internal/portal/service"
 )
 
@@ -49,6 +50,43 @@ type bookInput struct {
 type cancelInput struct {
 	ClinicID string `json:"clinic_id" binding:"required,uuid"`
 	Reason   string `json:"reason" binding:"required"`
+}
+
+type payInput struct {
+	ClinicID string `json:"clinic_id" binding:"required,uuid"`
+	Method   string `json:"method" binding:"omitempty,oneof=cash card e_wallet"`
+}
+
+type paymentResponse struct {
+	ID            string     `json:"id"`
+	AppointmentID string     `json:"appointment_id"`
+	Amount        string     `json:"amount"`
+	Currency      string     `json:"currency"`
+	Method        string     `json:"method"`
+	Status        string     `json:"status"`
+	PaidAt        *time.Time `json:"paid_at,omitempty"`
+	Reference     *string    `json:"reference,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	ClinicID      string     `json:"clinic_id"`
+	ClinicName    string     `json:"clinic_name"`
+}
+
+func toPaymentResponse(p *paymentsvc.Payment, clinic *service.ClinicRef) paymentResponse {
+	return paymentResponse{
+		ID:            p.ID.String(),
+		AppointmentID: p.AppointmentID.String(),
+		Amount:        p.Amount,
+		Currency:      p.Currency,
+		Method:        string(p.Method),
+		Status:        string(p.Status),
+		PaidAt:        p.PaidAt,
+		Reference:     p.Reference,
+		CreatedAt:     p.CreatedAt,
+		UpdatedAt:     p.UpdatedAt,
+		ClinicID:      clinic.ID.String(),
+		ClinicName:    clinic.Name,
+	}
 }
 
 type rescheduleInput struct {

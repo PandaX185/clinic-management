@@ -55,7 +55,7 @@ sqlc:
 SWAGGER_DIRS := cmd/api $(shell find internal -type d -name api -not -path '*/docs/*' -not -path '*/vendor/*' | sort)
 
 swagger:
-	swag init -g main.go -d "$(subst $(space),$(comma),$(SWAGGER_DIRS))" -o docs --parseInternal=true --parseDependency=true
+	go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g main.go -d "$(subst $(space),$(comma),$(SWAGGER_DIRS))" -o docs --parseInternal=true --parseDependency=true
 
 migrate-up:
 	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" up

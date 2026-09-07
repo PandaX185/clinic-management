@@ -4,23 +4,23 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/PandaX185/clinic-management/internal/clinic/repo"
 	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
 	"github.com/PandaX185/clinic-management/internal/platform/database"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
 )
 
 // clinicMembershipProvider implements identity.Service's membership port using
 // the global user_tenants index plus per-tenant role resolution. It lives in
 // the wiring package so the identity feature never imports clinic (which
-// already imports identity for its handler).
+// already imports identity for its handler). Role resolution is delegated to
+// the same ProfileStore the middleware uses, so there is a single source of
+// truth for "a user's role in a clinic schema".
 type clinicMembershipProvider struct {
-	pool  *pgxpool.Pool
-	store *repo.PostgresStore
+	pool     *pgxpool.Pool
+	store    *repo.PostgresStore
+	profiles *repo.PostgresProfileStore
 }
 
 // MembershipsForUser returns the clinics the user is a member of with their
@@ -51,31 +51,17 @@ func (p *clinicMembershipProvider) MembershipsForUser(ctx context.Context, userI
 	return out, nil
 }
 
-// primaryRole resolves the user's first role inside the clinic's schema.
+// primaryRole resolves the user's first role inside the clinic's schema by
+// reusing the shared profile store. A user with a profile but no roles, or no
+// profile at all, resolves to an empty role (patient-level visitor).
 func (p *clinicMembershipProvider) primaryRole(ctx context.Context, userID uuid.UUID, slug string) (string, error) {
-	var role string
-	err := database.NewScopedPool(p.pool).WithSchema(ctx, slug, func(tx pgx.Tx) error {
-		profile, err := db.New(tx).GetProfileByUserID(ctx, userID)
-		if err != nil {
-			if err == pgx.ErrNoRows {
-				return nil // no profile in this clinic → patient-level visitor
-			}
-			return err
-		}
-		rows, err := db.New(tx).ListUserRoles(ctx, profile.ID)
-		if err != nil {
-			return err
-		}
-		for _, r := range rows {
-			if r.Name != "" {
-				role = r.Name
-				return nil
-			}
-		}
-		return nil
-	})
+	scoped := database.WithTenantSlug(ctx, slug)
+	roles, err := p.profiles.RoleForUser(scoped, userID)
 	if err != nil {
-		return "", apperr.Internal(err)
+		return "", err
 	}
-	return role, nil
+	if len(roles) == 0 {
+		return "", nil
+	}
+	return roles[0], nil
 }

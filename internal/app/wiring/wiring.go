@@ -76,8 +76,9 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, *notif.Worker, error) {
 	// Real "my clinics" resolution for /auth/clinics: global user_tenants
 	// index + per-tenant role lookup. Defined here to keep identity→clinic acyclic.
 	membershipProvider := &clinicMembershipProvider{
-		pool:  d.Pool,
-		store: clinicStore,
+		pool:     d.Pool,
+		store:    clinicStore,
+		profiles: profileStore,
 	}
 	authSvc.WithClinicMemberships(membershipProvider)
 

@@ -8,36 +8,36 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	bookingapi "github.com/PandaX185/clinic-management/internal/booking/api"
-	bookingrepo "github.com/PandaX185/clinic-management/internal/booking/repo"
-	bookingsvc "github.com/PandaX185/clinic-management/internal/booking/service"
-	catapi "github.com/PandaX185/clinic-management/internal/catalog/api"
-	catrepo "github.com/PandaX185/clinic-management/internal/catalog/repo"
-	catsvc "github.com/PandaX185/clinic-management/internal/catalog/service"
-	clinicapi "github.com/PandaX185/clinic-management/internal/clinic/api"
-	clinicrepo "github.com/PandaX185/clinic-management/internal/clinic/repo"
-	clinicsvc "github.com/PandaX185/clinic-management/internal/clinic/service"
-	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
-	idrepo "github.com/PandaX185/clinic-management/internal/identity/repo"
-	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
-	paymentapi "github.com/PandaX185/clinic-management/internal/payments/api"
-	paymentrepo "github.com/PandaX185/clinic-management/internal/payments/repo"
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
-	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
-	portalrepo "github.com/PandaX185/clinic-management/internal/portal/repo"
-	portalsvc "github.com/PandaX185/clinic-management/internal/portal/service"
-	queueapi "github.com/PandaX185/clinic-management/internal/queue/api"
-	queuerepo "github.com/PandaX185/clinic-management/internal/queue/repo"
-	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
-	schedapi "github.com/PandaX185/clinic-management/internal/scheduling/api"
-	schedrepo "github.com/PandaX185/clinic-management/internal/scheduling/repo"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
-	server "github.com/PandaX185/clinic-management/internal/server"
+	bookingapi "github.com/PandaX185/lahza/internal/booking/api"
+	bookingrepo "github.com/PandaX185/lahza/internal/booking/repo"
+	bookingsvc "github.com/PandaX185/lahza/internal/booking/service"
+	catapi "github.com/PandaX185/lahza/internal/catalog/api"
+	catrepo "github.com/PandaX185/lahza/internal/catalog/repo"
+	catsvc "github.com/PandaX185/lahza/internal/catalog/service"
+	clinicapi "github.com/PandaX185/lahza/internal/clinic/api"
+	clinicrepo "github.com/PandaX185/lahza/internal/clinic/repo"
+	clinicsvc "github.com/PandaX185/lahza/internal/clinic/service"
+	idapi "github.com/PandaX185/lahza/internal/identity/api"
+	idrepo "github.com/PandaX185/lahza/internal/identity/repo"
+	idsvc "github.com/PandaX185/lahza/internal/identity/service"
+	paymentapi "github.com/PandaX185/lahza/internal/payments/api"
+	paymentrepo "github.com/PandaX185/lahza/internal/payments/repo"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
+	portalapi "github.com/PandaX185/lahza/internal/portal/api"
+	portalrepo "github.com/PandaX185/lahza/internal/portal/repo"
+	portalsvc "github.com/PandaX185/lahza/internal/portal/service"
+	queueapi "github.com/PandaX185/lahza/internal/queue/api"
+	queuerepo "github.com/PandaX185/lahza/internal/queue/repo"
+	queuesvc "github.com/PandaX185/lahza/internal/queue/service"
+	schedapi "github.com/PandaX185/lahza/internal/scheduling/api"
+	schedrepo "github.com/PandaX185/lahza/internal/scheduling/repo"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
+	server "github.com/PandaX185/lahza/internal/server"
 
-	notif "github.com/PandaX185/clinic-management/internal/notification"
-	"github.com/PandaX185/clinic-management/internal/platform/config"
-	"github.com/PandaX185/clinic-management/internal/platform/metrics"
-	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
+	notif "github.com/PandaX185/lahza/internal/notification"
+	"github.com/PandaX185/lahza/internal/platform/config"
+	"github.com/PandaX185/lahza/internal/platform/metrics"
+	natsclient "github.com/PandaX185/lahza/internal/platform/nats"
 )
 
 // Logger is the minimal logging surface the app depends on. *slog.Logger
@@ -88,7 +88,7 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, *notif.Worker, error) {
 	aptRepo := schedrepo.NewPostgresRepository(d.Pool)
 	var aptPublisher schedsvc.EventPublisher
 	if d.NATS != nil {
-		aptPublisher = notif.AppointmentEventPublisher{Bus: d.NATS, Subject: natsclient.SubjectNotify}
+		aptPublisher = notif.AppointmentEventPublisher{Bus: d.NATS, Subject: natsclient.SubjectNotify, Log: d.Log, Errors: m.EventPublishErrorsTotal}
 	}
 	aptSvc := schedsvc.NewServiceWithIdentity(aptRepo, aptPublisher, schedrepo.NewPostgresIdentityResolver(d.Pool), d.Cfg.IdempotencyTTL)
 	aptH := schedapi.NewHandler(aptSvc)
@@ -113,7 +113,7 @@ func Build(d Deps) (*gin.Engine, *metrics.Metrics, *notif.Worker, error) {
 	paymentRepo := paymentrepo.NewPostgresRepository(d.Pool)
 	var paymentPublisher schedsvc.EventPublisher
 	if d.NATS != nil {
-		paymentPublisher = notif.AppointmentEventPublisher{Bus: d.NATS, Subject: natsclient.SubjectNotify}
+		paymentPublisher = notif.AppointmentEventPublisher{Bus: d.NATS, Subject: natsclient.SubjectNotify, Log: d.Log, Errors: m.EventPublishErrorsTotal}
 	}
 	paymentSvc := paymentsvc.NewService(paymentRepo, paymentPublisher, "EGP")
 	paymentH := paymentapi.NewHandler(paymentSvc)

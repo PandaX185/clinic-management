@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/PandaX185/clinic-management/internal/catalog/service"
+	"github.com/PandaX185/lahza/internal/catalog/service"
 )
 
 type profileResponse struct {

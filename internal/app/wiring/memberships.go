@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/clinic/repo"
-	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
+	"github.com/PandaX185/lahza/internal/clinic/repo"
+	idsvc "github.com/PandaX185/lahza/internal/identity/service"
+	"github.com/PandaX185/lahza/internal/platform/database"
 )
 
 // clinicMembershipProvider implements identity.Service's membership port using

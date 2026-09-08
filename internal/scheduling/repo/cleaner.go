@@ -3,9 +3,11 @@ package repo
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,16 +44,45 @@ func (c *IdempotencyCleaner) Run(ctx context.Context, log *slog.Logger) {
 		case <-c.stop:
 			return
 		case <-ticker.C:
-			n, err := db.New(c.pool).DeleteExpiredIdempotencyKeys(ctx)
-			if err != nil {
-				log.Error("idempotency key cleanup failed", "error", err.Error())
-				continue
-			}
-			if n > 0 {
-				log.Info("purged expired idempotency keys", "count", n)
-			}
+			c.purge(ctx, log)
 		}
 	}
+}
+
+// purge deletes expired idempotency keys from every tenant schema. The keys
+// live inside each clinic's schema (tenant_<slug>), never in public, so the
+// sweep must scope the search path per schema rather than touching the raw
+// pool — a raw-pool DELETE targets public.idempotency_keys and no-ops.
+func (c *IdempotencyCleaner) purge(ctx context.Context, log *slog.Logger) {
+	schemas, err := database.ExistingTenantSchemas(ctx, c.pool)
+	if err != nil {
+		log.Error("idempotency cleanup: list tenant schemas failed", "error", err.Error())
+		return
+	}
+
+	var purged int64
+	for schema := range schemas {
+		slug := strings.TrimPrefix(schema, database.TenantSchemaPrefix)
+		n, err := c.purgeSchema(ctx, slug)
+		if err != nil {
+			log.Error("idempotency cleanup failed", "schema", schema, "error", err.Error())
+			continue
+		}
+		purged += n
+	}
+	if purged > 0 {
+		log.Info("purged expired idempotency keys", "count", purged)
+	}
+}
+
+func (c *IdempotencyCleaner) purgeSchema(ctx context.Context, slug string) (int64, error) {
+	var n int64
+	err := database.WithTenantSchema(ctx, c.pool, slug, func(q db.DBTX) error {
+		var err error
+		n, err = db.New(q).DeleteExpiredIdempotencyKeys(ctx)
+		return err
+	})
+	return n, err
 }
 
 // Stop signals the cleaner to exit and waits for it.

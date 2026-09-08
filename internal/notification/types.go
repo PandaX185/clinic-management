@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 // Notification is the canonical outbound message produced from an appointment
@@ -41,18 +42,40 @@ type EventBus interface {
 	Publish(ctx context.Context, subject string, payload []byte) error
 }
 
+// ErrorLogger is the minimal failure-reporting seam for the publisher; it is
+// satisfied by *slog.Logger. Optional — nil disables reporting.
+type ErrorLogger interface {
+	Error(msg string, args ...any)
+}
+
 // AppointmentEventPublisher adapts the NATS event bus to the appointment
 // service's EventPublisher seam. Messages land on SubjectNotify for the
-// notification worker to dequeue.
+// notification worker to dequeue. Publication is best-effort (it is not
+// transactional with the domain write), so failures are reported through
+// Log + Errors instead of being dropped silently.
 type AppointmentEventPublisher struct {
 	Bus     EventBus
 	Subject string
+	Log     ErrorLogger
+	Errors  prometheus.Counter
 }
 
 func (p AppointmentEventPublisher) PublishAppointmentEvent(ctx context.Context, e schedsvc.Event) {
 	payload, err := json.Marshal(e)
 	if err != nil {
+		p.report(err, "marshal")
 		return
 	}
-	_ = p.Bus.Publish(ctx, p.Subject, payload)
+	if err := p.Bus.Publish(ctx, p.Subject, payload); err != nil {
+		p.report(err, "publish")
+	}
+}
+
+func (p AppointmentEventPublisher) report(err error, stage string) {
+	if p.Errors != nil {
+		p.Errors.Inc()
+	}
+	if p.Log != nil {
+		p.Log.Error("appointment event lost", "stage", stage, "subject", p.Subject, "error", err.Error())
+	}
 }

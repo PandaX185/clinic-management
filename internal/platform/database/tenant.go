@@ -13,7 +13,7 @@ import (
 	"io/fs"
 	"regexp"
 
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,8 +25,12 @@ var slugPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 // ValidSlug reports whether s may be used as part of a schema identifier.
 func ValidSlug(s string) bool { return slugPattern.MatchString(s) }
 
+// TenantSchemaPrefix prefixes every tenant schema name. Deriving slugs from
+// pg_namespace entries (and vice versa) must always go through these two.
+const TenantSchemaPrefix = "tenant_"
+
 // SchemaName maps a validated tenant slug to its Postgres schema name.
-func SchemaName(slug string) string { return "tenant_" + slug }
+func SchemaName(slug string) string { return TenantSchemaPrefix + slug }
 
 func sortedMigrationFiles(fsys embed.FS) ([]string, error) {
 	matches, err := fs.Glob(fsys, "migrations/*.up.sql")

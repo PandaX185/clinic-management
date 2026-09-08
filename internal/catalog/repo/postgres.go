@@ -17,10 +17,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/catalog/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	"github.com/PandaX185/lahza/internal/catalog/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 )
 
 type PostgresRepo struct {

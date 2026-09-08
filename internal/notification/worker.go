@@ -7,8 +7,8 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 
-	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	natsclient "github.com/PandaX185/lahza/internal/platform/nats"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 // Worker dequeues appointment events from the notifications JetStream stream

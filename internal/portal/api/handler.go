@@ -5,10 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
-	"github.com/PandaX185/clinic-management/internal/portal/service"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/httpctx"
+	"github.com/PandaX185/lahza/internal/portal/service"
 )
 
 // Handler serves the patient portal endpoints. Every handler resolves the

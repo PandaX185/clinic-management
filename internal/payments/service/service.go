@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 // Service implements the payment use cases behind a tenant-scoped context.
@@ -92,17 +92,20 @@ func (s *Service) Pay(ctx context.Context, userID uuid.UUID, in PayInput) (*Paym
 		return nil, err
 	}
 	if paid == nil {
-		// Lost the update race; return whatever is now stored.
+		// Lost the finalisation race to a concurrent request. The winner owns
+		// event emission; report the current state without re-emitting so a
+		// duplicate appointment.paid is never published.
 		paid, err = s.repo.GetByID(ctx, payment.ID)
 		if err != nil {
 			return nil, err
 		}
-	}
-	if paid == nil {
-		return nil, apperr.Conflict("payment could not be finalized")
-	}
-	if paid.Status == StatusRefunded {
-		return nil, apperr.Conflict("this payment has already been refunded")
+		if paid == nil {
+			return nil, apperr.Conflict("payment could not be finalized")
+		}
+		if paid.Status == StatusRefunded {
+			return nil, apperr.Conflict("this payment has already been refunded")
+		}
+		return paid, nil
 	}
 
 	if s.publisher != nil {

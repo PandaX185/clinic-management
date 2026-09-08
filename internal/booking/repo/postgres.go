@@ -16,10 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	bookingsvc "github.com/PandaX185/clinic-management/internal/booking/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	bookingsvc "github.com/PandaX185/lahza/internal/booking/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 )
 
 // PostgresRepository resolves clinic discovery against Postgres.

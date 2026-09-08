@@ -15,6 +15,7 @@ type Metrics struct {
 	HTTPRequestLatency *prometheus.HistogramVec
 
 	NotificationsDeliveredTotal prometheus.Counter
+	EventPublishErrorsTotal     prometheus.Counter
 }
 
 func New() *Metrics {
@@ -35,6 +36,10 @@ func New() *Metrics {
 		NotificationsDeliveredTotal: f.NewCounter(prometheus.CounterOpts{
 			Name: "notifications_delivered_total",
 			Help: "Total notifications delivered by the async worker.",
+		}),
+		EventPublishErrorsTotal: f.NewCounter(prometheus.CounterOpts{
+			Name: "events_publish_errors_total",
+			Help: "Appointment events that failed to publish to the message bus.",
 		}),
 	}
 	return m

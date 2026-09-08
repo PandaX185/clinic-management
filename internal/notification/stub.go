@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/PandaX185/clinic-management/internal/platform/metrics"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	"github.com/PandaX185/lahza/internal/platform/metrics"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 // Logger is the minimal logging surface used by the notifier stub.

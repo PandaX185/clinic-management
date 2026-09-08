@@ -9,19 +9,19 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	bookingapi "github.com/PandaX185/clinic-management/internal/booking/api"
-	catapi "github.com/PandaX185/clinic-management/internal/catalog/api"
-	clinicapi "github.com/PandaX185/clinic-management/internal/clinic/api"
-	clinicsvc "github.com/PandaX185/clinic-management/internal/clinic/service"
-	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
-	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
-	paymentapi "github.com/PandaX185/clinic-management/internal/payments/api"
-	portalapi "github.com/PandaX185/clinic-management/internal/portal/api"
-	queueapi "github.com/PandaX185/clinic-management/internal/queue/api"
-	schedapi "github.com/PandaX185/clinic-management/internal/scheduling/api"
+	bookingapi "github.com/PandaX185/lahza/internal/booking/api"
+	catapi "github.com/PandaX185/lahza/internal/catalog/api"
+	clinicapi "github.com/PandaX185/lahza/internal/clinic/api"
+	clinicsvc "github.com/PandaX185/lahza/internal/clinic/service"
+	idapi "github.com/PandaX185/lahza/internal/identity/api"
+	idsvc "github.com/PandaX185/lahza/internal/identity/service"
+	paymentapi "github.com/PandaX185/lahza/internal/payments/api"
+	portalapi "github.com/PandaX185/lahza/internal/portal/api"
+	queueapi "github.com/PandaX185/lahza/internal/queue/api"
+	schedapi "github.com/PandaX185/lahza/internal/scheduling/api"
 
-	"github.com/PandaX185/clinic-management/internal/platform/config"
-	"github.com/PandaX185/clinic-management/internal/platform/metrics"
+	"github.com/PandaX185/lahza/internal/platform/config"
+	"github.com/PandaX185/lahza/internal/platform/metrics"
 )
 
 type RouterDeps struct {

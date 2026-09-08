@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/PandaX185/clinic-management/internal/booking/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
+	"github.com/PandaX185/lahza/internal/booking/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/httpctx"
 )
 
 // Handler serves the public clinic discovery endpoints. These routes carry

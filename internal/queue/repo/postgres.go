@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
-	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
+	queuesvc "github.com/PandaX185/lahza/internal/queue/service"
 )
 
 // PostgresRepository persists queue entries in a tenant schema.

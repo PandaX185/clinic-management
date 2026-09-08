@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/PandaX185/clinic-management/internal/identity/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
+	"github.com/PandaX185/lahza/internal/identity/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/httpctx"
 )
 
 // GlobalAdminChecker resolves the global super-admin flag. It is distinct

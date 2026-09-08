@@ -5,7 +5,7 @@ import (
 
 	"github.com/caarlos0/env/v11"
 
-	"github.com/PandaX185/clinic-management/internal/platform/retry"
+	"github.com/PandaX185/lahza/internal/platform/retry"
 )
 
 type Config struct {

@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/PandaX185/clinic-management/internal/platform/config"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
+	"github.com/PandaX185/lahza/internal/platform/config"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	natsclient "github.com/PandaX185/lahza/internal/platform/nats"
 )
 
 type Health struct {

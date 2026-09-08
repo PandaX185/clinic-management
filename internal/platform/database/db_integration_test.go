@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 )
 
 var itPool *pgxpool.Pool
@@ -36,7 +36,7 @@ func runIntegration(m *testing.M) int {
 	ctx := context.Background()
 	adminURL := os.Getenv("TEST_PG_URL")
 	if adminURL == "" {
-		adminURL = "postgres://clinic:clinic@localhost:5432/postgres?sslmode=disable"
+		adminURL = "postgres://lahza:lahza@localhost:5432/postgres?sslmode=disable"
 	}
 
 	admin, err := pgxpool.New(ctx, adminURL)

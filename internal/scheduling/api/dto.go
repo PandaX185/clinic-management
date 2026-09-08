@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/PandaX185/clinic-management/internal/scheduling/service"
+	"github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 type appointmentResponse struct {

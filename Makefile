@@ -58,13 +58,13 @@ swagger:
 	go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g main.go -d "$(subst $(space),$(comma),$(SWAGGER_DIRS))" -o docs --parseInternal=true --parseDependency=true
 
 migrate-up:
-	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" up
+	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://lahza:lahza@localhost:5432/lahza?sslmode=disable}" up
 
 migrate-down:
-	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://clinic:clinic@localhost:5432/clinic?sslmode=disable}" down 1
+	migrate -path ./db/migrations/global -database "$${DATABASE_URL:-postgres://lahza:lahza@localhost:5432/lahza?sslmode=disable}" down 1
 
 docker-build:
-	docker build -t clinic-management-api .
+	docker build -t lahza-api .
 
 docker-up:
 	docker compose up -d

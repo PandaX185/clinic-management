@@ -7,8 +7,8 @@ package api
 import (
 	"time"
 
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
-	"github.com/PandaX185/clinic-management/internal/portal/service"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
+	"github.com/PandaX185/lahza/internal/portal/service"
 )
 
 type userResponse struct {

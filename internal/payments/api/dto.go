@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
 )
 
 type paymentResponse struct {

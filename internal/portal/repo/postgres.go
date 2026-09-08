@@ -15,10 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
-	portalsvc "github.com/PandaX185/clinic-management/internal/portal/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
+	portalsvc "github.com/PandaX185/lahza/internal/portal/service"
 )
 
 // PostgresRepository resolves patient portal data against Postgres.

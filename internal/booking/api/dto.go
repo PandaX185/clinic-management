@@ -7,7 +7,7 @@ package api
 import (
 	"time"
 
-	"github.com/PandaX185/clinic-management/internal/booking/service"
+	"github.com/PandaX185/lahza/internal/booking/service"
 )
 
 type clinicListItem struct {

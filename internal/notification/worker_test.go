@@ -1,16 +1,21 @@
 package notification
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 
-	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	natsclient "github.com/PandaX185/lahza/internal/platform/nats"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 type fakeNotifier struct {
@@ -142,5 +147,26 @@ func TestAppointmentEventPublisherPublishesToNotifySubject(t *testing.T) {
 	}
 	if decoded.Type != e.Type || decoded.Appointment.ID != e.Appointment.ID {
 		t.Errorf("payload mismatch: %+v", decoded)
+	}
+}
+
+func TestAppointmentEventPublisherReportsPublishError(t *testing.T) {
+	bus := &fakeBus{publishErr: context.DeadlineExceeded}
+	counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_events_publish_errors_total"})
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+	p := AppointmentEventPublisher{Bus: bus, Subject: natsclient.SubjectNotify, Log: log, Errors: counter}
+
+	p.PublishAppointmentEvent(context.Background(), sampleEvent())
+
+	var m dto.Metric
+	if err := counter.Write(&m); err != nil {
+		t.Fatalf("read counter: %v", err)
+	}
+	if m.Counter.GetValue() != 1 {
+		t.Fatalf("expected 1 publish error counted, got %g", m.Counter.GetValue())
+	}
+	if !strings.Contains(buf.String(), "appointment event lost") {
+		t.Errorf("expected failure to be logged, got: %s", buf.String())
 	}
 }

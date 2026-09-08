@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	queuesvc "github.com/PandaX185/lahza/internal/queue/service"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 // User is the patient's global identity.

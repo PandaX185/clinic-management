@@ -1,4 +1,4 @@
-# Clinic Management
+# Lahza (لحظة)
 
 Multi-clinic appointment backend in Go — each clinic gets its own isolated Postgres schema, with global user accounts that work across clinics.
 
@@ -39,8 +39,8 @@ Multi-clinic appointment backend in Go — each clinic gets its own isolated Pos
 ## Quick start
 
 ```bash
-git clone https://github.com/PandaX185/clinic-management.git
-cd clinic-management
+git clone https://github.com/PandaX185/lahza.git
+cd lahza
 
 # Start dependencies
 docker-compose up -d

@@ -7,7 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/PandaX185/clinic-management/internal/platform/retry"
+	"github.com/PandaX185/lahza/internal/platform/retry"
 )
 
 type Client = redis.Client

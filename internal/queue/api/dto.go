@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
+	queuesvc "github.com/PandaX185/lahza/internal/queue/service"
 )
 
 type checkInInput struct {

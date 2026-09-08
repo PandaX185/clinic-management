@@ -9,10 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	idsvc "github.com/PandaX185/lahza/internal/identity/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 )
 
 var slugRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)

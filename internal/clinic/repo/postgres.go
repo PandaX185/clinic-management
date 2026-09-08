@@ -7,13 +7,13 @@ import (
 	"context"
 	"errors"
 
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/clinic/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/clinic/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
 )
 
 type PostgresStore struct {

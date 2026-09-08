@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/identity/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	db "github.com/PandaX185/clinic-management/internal/platform/db/sqlc"
+	"github.com/PandaX185/lahza/internal/identity/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	db "github.com/PandaX185/lahza/internal/platform/db/sqlc"
 )
 
 // PostgresRepository is the PostgreSQL implementation of auth.service.Repository.

@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	idapi "github.com/PandaX185/clinic-management/internal/identity/api"
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
+	idapi "github.com/PandaX185/lahza/internal/identity/api"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/httpctx"
 )
 
 // HeaderClinicID is the header that selects the clinic; kept in sync with

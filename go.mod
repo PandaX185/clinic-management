@@ -1,4 +1,4 @@
-module github.com/PandaX185/clinic-management
+module github.com/PandaX185/lahza
 
 go 1.26.5
 

@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	idsvc "github.com/PandaX185/clinic-management/internal/identity/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	idsvc "github.com/PandaX185/lahza/internal/identity/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
 )
 
 // Service is the clinic directory use case surface.

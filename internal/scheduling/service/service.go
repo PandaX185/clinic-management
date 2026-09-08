@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
 )
 
 // transitionParams defines the parameters for a state transition.

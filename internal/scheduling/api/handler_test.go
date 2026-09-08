@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/PandaX185/clinic-management/internal/platform/httpctx"
+	"github.com/PandaX185/lahza/internal/platform/httpctx"
 )
 
 // newGateRouter mounts the appointment routes behind a stub auth that injects

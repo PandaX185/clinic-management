@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
 )
 
 const (

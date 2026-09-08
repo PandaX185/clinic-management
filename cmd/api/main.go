@@ -1,6 +1,6 @@
-// @title Clinic Management API
+// @title Lahza API
 // @version 1.0.0
-// @description Multi-tenant clinic management: auth, clinic registry, booking, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).
+// @description Lahza (لحظة) — multi-tenant clinic operations: auth, clinic registry, booking, and appointments. Except for /auth/register, /auth/login and /auth/refresh, every endpoint requires a JWT bearer token (BearerAuth). Tenant-scoped endpoints additionally require the X-Tenant-ID header (see each operation).
 // @host localhost:8080
 // @BasePath /api/v1
 //
@@ -31,15 +31,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/PandaX185/clinic-management/docs"
+	_ "github.com/PandaX185/lahza/docs"
 
-	"github.com/PandaX185/clinic-management/internal/app/wiring"
-	"github.com/PandaX185/clinic-management/internal/platform/config"
-	"github.com/PandaX185/clinic-management/internal/platform/database"
-	"github.com/PandaX185/clinic-management/internal/platform/logger"
-	natsclient "github.com/PandaX185/clinic-management/internal/platform/nats"
-	redisclient "github.com/PandaX185/clinic-management/internal/platform/redis"
-	schedrepo "github.com/PandaX185/clinic-management/internal/scheduling/repo"
+	"github.com/PandaX185/lahza/internal/app/wiring"
+	"github.com/PandaX185/lahza/internal/platform/config"
+	"github.com/PandaX185/lahza/internal/platform/database"
+	"github.com/PandaX185/lahza/internal/platform/logger"
+	natsclient "github.com/PandaX185/lahza/internal/platform/nats"
+	redisclient "github.com/PandaX185/lahza/internal/platform/redis"
+	schedrepo "github.com/PandaX185/lahza/internal/scheduling/repo"
 )
 
 func main() {

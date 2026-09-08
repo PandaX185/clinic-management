@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	queuesvc "github.com/PandaX185/clinic-management/internal/queue/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	queuesvc "github.com/PandaX185/lahza/internal/queue/service"
 )
 
 // stubQueue is an in-memory Repository focused on the service's decision

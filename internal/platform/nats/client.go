@@ -8,7 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
-	"github.com/PandaX185/clinic-management/internal/platform/retry"
+	"github.com/PandaX185/lahza/internal/platform/retry"
 )
 
 type Client struct {

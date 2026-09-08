@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: clinic
-      POSTGRES_PASSWORD: clinic
-      POSTGRES_DB: clinic
+      POSTGRES_USER: lahza
+      POSTGRES_PASSWORD: lahza
+      POSTGRES_DB: lahza
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clinic -d clinic"]
+      test: ["CMD-SHELL", "pg_isready -U lahza -d lahza"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -43,7 +43,7 @@ services:
       ENV: development
       LOG_FORMAT: json
       PORT: "8080"
-      DATABASE_URL: postgres://clinic:clinic@postgres:5432/clinic?sslmode=disable
+      DATABASE_URL: postgres://lahza:lahza@postgres:5432/lahza?sslmode=disable
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}

@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	paymentsvc "github.com/PandaX185/clinic-management/internal/payments/service"
-	"github.com/PandaX185/clinic-management/internal/platform/apperr"
-	schedsvc "github.com/PandaX185/clinic-management/internal/scheduling/service"
+	paymentsvc "github.com/PandaX185/lahza/internal/payments/service"
+	"github.com/PandaX185/lahza/internal/platform/apperr"
+	schedsvc "github.com/PandaX185/lahza/internal/scheduling/service"
 )
 
 func TestPay_CollectsPriceAndMarksPaid(t *testing.T) {
@@ -96,6 +96,30 @@ func TestPay_IdempotentWhenAlreadyPaid(t *testing.T) {
 	}
 }
 
+func TestPay_RaceLoserDoesNotEmitEvent(t *testing.T) {
+	userID, apptID := uuid.New(), uuid.New()
+	// Simulate losing the pending->paid race: another request wins the
+	// transition (MarkPaid returns nil) and the payment is already paid.
+	stub := &stubRepo{
+		appt:         &paymentsvc.Appointment{ID: apptID, PatientID: userID, Status: "scheduled", Price: "50.00"},
+		one:          &paymentsvc.Payment{ID: uuid.New(), AppointmentID: apptID, Status: paymentsvc.StatusPaid, Amount: "50.00"},
+		loseMarkPaid: true,
+	}
+	pub := &stubPublisher{}
+	svc := paymentsvc.NewService(stub, pub, "EGP")
+
+	got, err := svc.Pay(context.Background(), userID, paymentsvc.PayInput{AppointmentID: apptID, Method: paymentsvc.MethodCard})
+	if err != nil {
+		t.Fatalf("Pay: %v", err)
+	}
+	if got.Status != paymentsvc.StatusPaid {
+		t.Errorf("expected paid, got %s", got.Status)
+	}
+	if len(pub.events) != 0 {
+		t.Errorf("race loser must not emit appointment.paid, got %+v", pub.events)
+	}
+}
+
 func TestPay_RejectsRefundedPayment(t *testing.T) {
 	userID, apptID := uuid.New(), uuid.New()
 	stub := &stubRepo{
@@ -167,6 +191,8 @@ type stubRepo struct {
 	one    *paymentsvc.Payment // returned by GetByID
 	paying *paymentsvc.Payment // result of InsertPending / MarkPaid
 
+	loseMarkPaid bool // MarkPaid returns nil (simulates losing the race)
+
 	inserted       *paymentsvc.Payment
 	insertedAmount string
 }
@@ -205,6 +231,9 @@ func (s *stubRepo) GetByID(_ context.Context, _ uuid.UUID) (*paymentsvc.Payment,
 }
 
 func (s *stubRepo) MarkPaid(_ context.Context, id uuid.UUID) (*paymentsvc.Payment, error) {
+	if s.loseMarkPaid {
+		return nil, nil
+	}
 	if s.paying == nil || s.paying.ID != id {
 		return nil, nil
 	}

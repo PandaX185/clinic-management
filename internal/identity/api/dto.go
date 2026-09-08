@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"github.com/PandaX185/clinic-management/internal/identity/service"
+	"github.com/PandaX185/lahza/internal/identity/service"
 )
 
 type userResponse struct {

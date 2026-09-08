@@ -49,7 +49,9 @@ func (p *ScopedPool) Pool() *pgxpool.Pool { return p.pool }
 // schema was never provisioned (e.g. pre-schema-era records), which would
 // otherwise fail every query against a missing schema.
 func ExistingTenantSchemas(ctx context.Context, pool *pgxpool.Pool) (map[string]struct{}, error) {
-	rows, err := pool.Query(ctx, `SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname LIKE $1 ORDER BY nspname`, `tenant\_%`)
+	// Literal underscore in LIKE needs an escape (default backslash), so the
+	// pattern is built as "tenant" + "\_%": only schemas named tenant_<slug>.
+	rows, err := pool.Query(ctx, `SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname LIKE $1 ORDER BY nspname`, "tenant"+`\_%`)
 	if err != nil {
 		return nil, err
 	}

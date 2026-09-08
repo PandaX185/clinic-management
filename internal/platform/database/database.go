@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/PandaX185/clinic-management/internal/platform/retry"
+	"github.com/PandaX185/lahza/internal/platform/retry"
 )
 
 type Pool = pgxpool.Pool

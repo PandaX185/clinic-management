@@ -4,7 +4,7 @@
 package api
 
 import (
-	"github.com/PandaX185/clinic-management/internal/clinic/service"
+	"github.com/PandaX185/lahza/internal/clinic/service"
 )
 
 type clinicResponse struct {
